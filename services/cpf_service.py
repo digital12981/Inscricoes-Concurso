@@ -1,7 +1,6 @@
 import requests
 import logging
 from typing import Dict, Any, Optional
-import time
 
 logger = logging.getLogger(__name__)
 
@@ -9,72 +8,54 @@ class CpfService:
     def __init__(self, api_url: str, token: str):
         self.api_url = api_url
         self.token = token
-        self.max_retries = 3
-        self.retry_delay = 1  # segundos entre tentativas
+        self.timeout = 10
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0',
+            'Accept': 'application/json',
+            'Accept-Language': 'pt-BR,pt;q=0.9',
+        }
 
     def consultar_cpf(self, cpf: str) -> Optional[Dict[str, Any]]:
         """
-        Consulta CPF na API externa usando abordagem iterativa
+        Consulta CPF na API externa de forma simples e direta
         """
-        session = None
         try:
+            # Limpa o CPF
             cpf_numerico = ''.join(filter(str.isdigit, cpf))
-
             if not cpf_numerico or len(cpf_numerico) != 11:
                 logger.error(f"CPF inválido: {cpf}")
                 return None
 
+            # Monta a URL
             url = self.api_url.format(cpf=cpf_numerico)
-            
-            # Criar uma nova sessão com configurações otimizadas
-            session = requests.Session()
-            adapter = requests.adapters.HTTPAdapter(
-                max_retries=0,  # Desabilita retries automáticos
-                pool_connections=5,
-                pool_maxsize=5
-            )
-            session.mount('https://', adapter)
-            session.mount('http://', adapter)
-            
-            session.headers.update({
-                'User-Agent': 'Mozilla/5.0',
-                'Accept': 'application/json',
-                'Accept-Language': 'pt-BR,pt;q=0.9',
-            })
-
             logger.info(f"Iniciando consulta de CPF: {cpf_numerico[:3]}***{cpf_numerico[-2:]}")
-            
-            # Loop de tentativas
-            for tentativa in range(self.max_retries):
+
+            # Faz a requisição
+            response = requests.get(
+                url,
+                headers=self.headers,
+                timeout=self.timeout,
+                verify=True
+            )
+
+            # Verifica o status code
+            if response.status_code == 200:
                 try:
-                    response = session.get(
-                        url, 
-                        timeout=5,  # Reduzido timeout
-                        verify=True
-                    )
-                    
-                    logger.info(f"Tentativa {tentativa + 1}: Status code {response.status_code}")
-                    
-                    if response.status_code == 200:
-                        dados = response.json()
-                        return dados.get('DADOS', {})
-                    
-                    # Se não for 200, espera antes da próxima tentativa
-                    if tentativa < self.max_retries - 1:
-                        time.sleep(self.retry_delay)
-                        
-                except requests.exceptions.RequestException as e:
-                    logger.warning(f"Erro na tentativa {tentativa + 1}: {str(e)}")
-                    if tentativa < self.max_retries - 1:
-                        time.sleep(self.retry_delay)
-                    continue
+                    dados = response.json()
+                    return dados.get('DADOS', {})
+                except ValueError as e:
+                    logger.error(f"Erro ao decodificar JSON: {e}")
+                    return None
+            else:
+                logger.error(f"Erro na API: Status {response.status_code}")
+                return None
 
-            logger.error("Todas as tentativas falharam")
+        except requests.exceptions.Timeout:
+            logger.error("Timeout na requisição")
             return None
-
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Erro na requisição: {e}")
+            return None
         except Exception as e:
-            logger.error(f"Erro inesperado na consulta: {str(e)}")
+            logger.error(f"Erro inesperado: {e}")
             return None
-        finally:
-            if session:
-                session.close()
