@@ -15,8 +15,8 @@ from flask_wtf import FlaskForm
 from wtforms import StringField
 from wtforms.validators import DataRequired
 
-# Set recursion limit
-sys.setrecursionlimit(3000)
+# Ajustar o limite de recursão para um valor mais conservador
+sys.setrecursionlimit(1500)  # Mudando de 3000 para 1500
 
 # Configuração do logging
 logging.basicConfig(level=logging.DEBUG)

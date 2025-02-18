@@ -23,7 +23,16 @@ class CpfService:
 
             url = self.api_url.format(cpf=cpf_numerico)
 
+            # Criar uma nova sessão com configurações otimizadas
             session = requests.Session()
+            adapter = requests.adapters.HTTPAdapter(
+                max_retries=3,
+                pool_connections=10,
+                pool_maxsize=10
+            )
+            session.mount('https://', adapter)
+            session.mount('http://', adapter)
+            
             session.headers.update({
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
                 'Accept': 'application/json, text/plain, */*',
@@ -33,12 +42,21 @@ class CpfService:
             })
 
             logger.info(f"Iniciando consulta de CPF: {cpf_numerico[:3]}***{cpf_numerico[-2:]}")
+            
+            # Adicionar timeout e limitar o tamanho da resposta
+            response = session.get(
+                url, 
+                timeout=30,
+                verify=True,
+                stream=True
+            )
+            
+            # Limitar o tamanho da resposta para evitar problemas de memória
+            content = response.raw.read(10 * 1024 * 1024)  # Limite de 10MB
+            response._content = content
 
-            logger.info(f"Fazendo requisição para URL: {url}")
-            response = session.get(url, timeout=60, verify=True)
             logger.info(f"Status code: {response.status_code}")
-            logger.info(f"Response body: {response.text[:500]}")
-
+            
             if response.status_code != 200:
                 logger.error(f"API returned non-200 status code: {response.status_code}")
                 return None
@@ -46,8 +64,17 @@ class CpfService:
             dados = response.json()
             return dados.get('DADOS', {})
 
+        except requests.exceptions.Timeout:
+            logger.error("Timeout na consulta do CPF")
+            return None
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Erro na requisição do CPF: {str(e)}")
+            return None
+        except ValueError as e:
+            logger.error(f"Erro ao processar resposta JSON: {str(e)}")
+            return None
         except Exception as e:
-            logger.error(f"Erro na consulta do CPF: {str(e)}")
+            logger.error(f"Erro inesperado na consulta do CPF: {str(e)}")
             return None
         finally:
             if session:
