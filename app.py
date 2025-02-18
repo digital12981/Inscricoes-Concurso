@@ -26,20 +26,19 @@ sys.setrecursionlimit(1500)  # Mudando de 3000 para 1500
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# Adicione isso no início do seu arquivo app.py, antes de usar a DATABASE_URL
-os.environ['DATABASE_URL'] = "postgresql://postgres:postgres@localhost:5432/postgres"
-
 # Configuração da URL do banco de dados
-database_url = os.getenv('DATABASE_URL', "postgresql://postgres:postgres@localhost:5432/postgres")
+database_url = os.getenv('DATABASE_URL')
+
+# Verificação das variáveis de ambiente
+if not database_url:
+    # Fallback para desenvolvimento local
+    database_url = "postgresql://postgres:postgres@localhost:5432/postgres"
+    logger.warning("DATABASE_URL não encontrada, usando configuração local")
 
 # Ajuste para compatibilidade com URLs do Heroku PostgreSQL
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 
-# Verificação das variáveis de ambiente
-database_url = os.environ.get("DATABASE_URL")
-if not database_url:
-    raise ValueError("DATABASE_URL environment variable is not set")
 logger.info(f"Database URL found: {database_url.split(':')[0]}")
 
 # Inicialização do Flask e configurações
