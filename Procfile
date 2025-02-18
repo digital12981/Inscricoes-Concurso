@@ -1,1 +1,1 @@
-web: gunicorn --config gunicorn_config.py main:app
+web: gunicorn --worker-class gevent --workers 4 app:app
