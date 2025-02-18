@@ -250,7 +250,7 @@ def get_client_ip() -> str:
     return ip
 
 def gerar_nomes_falsos(nome_real: str) -> list:
-    nomes = [
+    nomes_base = [
         "MARIA SILVA SANTOS",
         "JOSE OLIVEIRA SOUZA",
         "ANA PEREIRA LIMA",
@@ -262,18 +262,25 @@ def gerar_nomes_falsos(nome_real: str) -> list:
         "PEDRO ALMEIDA COSTA",
         "LUCAS CARVALHO LIMA"
     ]
-    # Remove nomes que são muito similares ao nome real
-    nomes_diferentes = [n for n in nomes if len(set(n.split()) & set(nome_real.split())) == 0]
     
-    # Se não houver nomes diferentes suficientes, usa os primeiros da lista
+    # Converte nome_real para conjunto de palavras
+    palavras_nome_real = set(nome_real.upper().split())
+    
+    # Filtra nomes diferentes de forma mais eficiente
+    nomes_diferentes = []
+    for nome in nomes_base:
+        palavras_nome = set(nome.split())
+        if not palavras_nome_real.intersection(palavras_nome):
+            nomes_diferentes.append(nome)
+            if len(nomes_diferentes) >= 2:
+                break
+    
+    # Se não encontrou nomes diferentes suficientes, usa os primeiros da lista base
     if len(nomes_diferentes) < 2:
-        nomes_falsos = nomes[:2]
-    else:
-        # Seleciona 2 nomes aleatórios
-        nomes_falsos = random.sample(nomes_diferentes, min(2, len(nomes_diferentes)))
+        nomes_diferentes = nomes_base[:2]
     
-    # Adiciona o nome real e embaralha
-    todos_nomes = nomes_falsos + [nome_real]
+    # Cria lista final com nome real
+    todos_nomes = nomes_diferentes[:2] + [nome_real]
     random.shuffle(todos_nomes)
     return todos_nomes
 
