@@ -11,6 +11,9 @@ from flask_caching import Cache
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import flask
+from flask_wtf import FlaskForm
+from wtforms import StringField
+from wtforms.validators import DataRequired
 
 # Set recursion limit
 sys.setrecursionlimit(3000)
@@ -82,54 +85,59 @@ from services.utils import gerar_nomes_falsos
 API_URL = "https://consulta.fontesderenda.blog/?token=4da265ab-0452-4f87-86be-8d83a04a745a&cpf={cpf}"
 cpf_service = CpfService(API_URL, "4da265ab-0452-4f87-86be-8d83a04a745a")
 
-@app.route('/consultar_cpf', methods=['POST'])
+class ConsultaCpfForm(FlaskForm):
+    cpf = StringField('CPF', validators=[DataRequired()])
+
+@app.route('/consultar_cpf', methods=['GET', 'POST'])
 def consultar_cpf():
-    cpf = request.form.get('cpf', '').strip()
-    cpf_numerico = ''.join(filter(str.isdigit, cpf))
+    form = ConsultaCpfForm()
+    if request.method == 'POST' and form.validate_on_submit():
+        cpf = form.cpf.data.strip()
+        cpf_numerico = ''.join(filter(str.isdigit, cpf))
 
-    try:
-        dados_api = cpf_service.consultar_cpf(cpf)
+        try:
+            dados_api = cpf_service.consultar_cpf(cpf)
 
-        if not dados_api:
-            flash('CPF não encontrado ou erro na consulta. Por favor, tente novamente.')
+            if not dados_api:
+                flash('CPF não encontrado ou erro na consulta. Por favor, tente novamente.')
+                return redirect(url_for('index'))
+
+            nome = dados_api.get('NOME')
+            if not nome:
+                logger.error("Nome não encontrado nos dados")
+                flash('CPF não encontrado ou dados incompletos.')
+                return redirect(url_for('index'))
+
+            # Create user data dictionary
+            dados_usuario = {
+                'cpf': cpf_numerico,
+                'nome_real': nome,
+                'data_nasc': dados_api.get('NASC', ''),
+                'nomes': gerar_nomes_falsos(nome)
+            }
+
+            # Store in Flask session
+            session['dados_usuario'] = dados_usuario
+
+            return render_template('verificar_nome.html',
+                                dados=dados_usuario,
+                                current_year=datetime.now().year)
+
+        except requests.exceptions.Timeout:
+            logger.error("Timeout ao consultar a API")
+            flash('Tempo limite excedido. Por favor, tente novamente.')
+            return redirect(url_for('index'))
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"Erro de conexão: {str(e)}")
+            flash('Erro de conexão. Por favor, verifique sua internet e tente novamente.')
+            return redirect(url_for('index'))
+        except Exception as e:
+            logger.error(f"Erro inesperado na consulta: {str(e)}")
+            flash('Erro ao consultar CPF. Por favor, tente novamente.')
             return redirect(url_for('index'))
 
-        nome = dados_api.get('NOME')
-        if not nome:
-            logger.error("Nome não encontrado nos dados")
-            flash('CPF não encontrado ou dados incompletos.')
-            return redirect(url_for('index'))
-
-        # Create user data dictionary
-        dados_usuario = {
-            'cpf': cpf_numerico,
-            'nome_real': nome,
-            'data_nasc': dados_api.get('NASC', ''),
-            'nomes': gerar_nomes_falsos(nome)
-        }
-
-        # Store in Flask session
-        session['dados_usuario'] = dados_usuario
-
-        return render_template('verificar_nome.html',
-                              dados=dados_usuario,
-                              current_year=datetime.now().year)
-
-    except requests.exceptions.Timeout:
-        logger.error("Timeout ao consultar a API")
-        flash('Tempo limite excedido. Por favor, tente novamente.')
-        return redirect(url_for('index'))
-    except requests.exceptions.ConnectionError as e:
-        logger.error(f"Erro de conexão: {str(e)}")
-        flash('Erro de conexão. Por favor, verifique sua internet e tente novamente.')
-        return redirect(url_for('index'))
-    except Exception as e:
-        logger.error(f"Erro inesperado na consulta: {str(e)}")
-        flash('Erro ao consultar CPF. Por favor, tente novamente.')
-        return redirect(url_for('index'))
-    finally:
-        if 'req_session' in locals():
-            req_session.close()
+    # If GET request or form validation failed
+    return redirect(url_for('index'))
 
 ESTADOS = {
     'Acre': 'AC',
