@@ -100,40 +100,26 @@ def consultar_cpf():
         })
 
         logger.info(f"Iniciando consulta de CPF: {cpf_numerico[:3]}***{cpf_numerico[-2:]}")
-        logger.info(f"URL da requisição: {API_URL.format(cpf=cpf_numerico)}")
 
         # Make the request with the session
         response = req_session.get(
             API_URL.format(cpf=cpf_numerico),
-            timeout=60,  # Increased timeout
-            verify=True,
-            stream=True
+            timeout=60,
+            verify=True
         )
-        # Read response content as bytes
-        content = response.content
-        
+
         # Log response details
         logger.info(f"Status code: {response.status_code}")
         logger.info(f"Response headers: {dict(response.headers)}")
-        logger.info(f"Response content length: {len(content)}")
 
-        # Parse response content
-        try:
-            dados = response.json()
-        except Exception as e:
-            logger.error(f"Error parsing JSON: {str(e)}")
-            try:
-                dados = response.json(strict=False)
-            except:
-                dados = {}
-
+        # Check status code first
         if response.status_code != 200:
             logger.error(f"API returned non-200 status code: {response.status_code}")
             logger.error(f"Response content: {response.text}")
             flash('Erro ao consultar CPF. Por favor, tente novamente.')
             return redirect(url_for('index'))
 
-        # Try to parse the JSON response
+        # Try to parse JSON response once
         try:
             dados = response.json()
             logger.info(f"JSON response parsed successfully: {str(dados)[:500]}")
@@ -142,8 +128,6 @@ def consultar_cpf():
             logger.error(f"Response content: {response.text}")
             flash('Erro ao processar resposta da consulta. Por favor, tente novamente.')
             return redirect(url_for('index'))
-
-        logger.info("Resposta da API recebida com sucesso")
 
         # Validate response structure
         if not isinstance(dados, dict):
@@ -185,10 +169,6 @@ def consultar_cpf():
     except requests.exceptions.ConnectionError as e:
         logger.error(f"Erro de conexão: {str(e)}")
         flash('Erro de conexão. Por favor, verifique sua internet e tente novamente.')
-        return redirect(url_for('index'))
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Erro na requisição: {str(e)}")
-        flash('Erro ao consultar CPF. Por favor, tente novamente.')
         return redirect(url_for('index'))
     except Exception as e:
         logger.error(f"Erro inesperado na consulta: {str(e)}")
@@ -427,7 +407,7 @@ def verificar_endereco():
         if not all(endereco.get(campo) for campo in campos_obrigatorios):
             flash('Por favor, preencha todos os campos obrigatórios.')
             return render_template('verificar_endereco.html', 
-                               current_year=datetime.now().year)
+                              current_year=datetime.now().year)
 
         # Adiciona o endereço aos dados do usuário
         dados_usuario['endereco'] = endereco
