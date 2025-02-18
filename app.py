@@ -10,6 +10,7 @@ from flask import Flask, render_template, url_for, request, redirect, flash, ses
 from flask_caching import Cache
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+import flask
 
 # Configuração do logging
 logging.basicConfig(level=logging.DEBUG)
@@ -85,8 +86,8 @@ def consultar_cpf():
 
     try:
         # Configure the session for requests
-        session = requests.Session()
-        session.headers.update({
+        req_session = requests.Session()
+        req_session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             'Accept': 'application/json, text/plain, */*',
             'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -102,7 +103,7 @@ def consultar_cpf():
         logger.info(f"URL da requisição: {API_URL.format(cpf=cpf_numerico)}")
 
         # Make the request with the session
-        response = session.get(
+        response = req_session.get(
             API_URL.format(cpf=cpf_numerico),
             timeout=60,  # Increased timeout
             verify=True
@@ -156,11 +157,13 @@ def consultar_cpf():
             'data_nasc': dados_api.get('NASC', ''),
             'nomes': gerar_nomes_falsos(nome)
         }
-        session['dados_usuario'] = dados_usuario
+
+        # Store in Flask session
+        flask.session['dados_usuario'] = dados_usuario
 
         return render_template('verificar_nome.html',
-                            dados=dados_usuario,
-                            current_year=datetime.now().year)
+                          dados=dados_usuario,
+                          current_year=datetime.now().year)
 
     except requests.exceptions.Timeout:
         logger.error("Timeout ao consultar a API")
@@ -179,8 +182,8 @@ def consultar_cpf():
         flash('Erro ao consultar CPF. Por favor, tente novamente.')
         return redirect(url_for('index'))
     finally:
-        if 'session' in locals():
-            session.close()
+        if 'req_session' in locals():
+            req_session.close()
 
 ESTADOS = {
     'Acre': 'AC',
@@ -405,7 +408,7 @@ def verificar_endereco():
         if not all(endereco.get(campo) for campo in campos_obrigatorios):
             flash('Por favor, preencha todos os campos obrigatórios.')
             return render_template('verificar_endereco.html', 
-                                current_year=datetime.now().year)
+                               current_year=datetime.now().year)
 
         # Adiciona o endereço aos dados do usuário
         dados_usuario['endereco'] = endereco
