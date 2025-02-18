@@ -12,6 +12,9 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import flask
 
+# Set recursion limit
+sys.setrecursionlimit(3000)
+
 # Configuração do logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -112,30 +115,38 @@ def consultar_cpf():
         logger.info(f"Status code: {response.status_code}")
         logger.info(f"Response headers: {dict(response.headers)}")
 
-        # Check status code first
         if response.status_code != 200:
             logger.error(f"API returned non-200 status code: {response.status_code}")
             logger.error(f"Response content: {response.text}")
             flash('Erro ao consultar CPF. Por favor, tente novamente.')
             return redirect(url_for('index'))
 
-        # Try to parse JSON response once
+        # Get the raw text first
+        response_text = response.text
+        logger.info(f"Raw response text (first 500 chars): {response_text[:500]}")
+
+        # Try to parse JSON response with error handling
         try:
-            dados = response.json()
-            logger.info(f"JSON response parsed successfully: {str(dados)[:500]}")
+            dados = {}
+            response_text = response_text.strip()
+            if response_text:  # Only try to parse if we have content
+                dados = response.json()
+                logger.info(f"JSON parsed successfully. Keys: {list(dados.keys()) if isinstance(dados, dict) else 'Not a dict'}")
         except Exception as json_error:
             logger.error(f"Error parsing JSON response: {str(json_error)}")
-            logger.error(f"Response content: {response.text}")
+            logger.error(f"Response content: {response_text}")
             flash('Erro ao processar resposta da consulta. Por favor, tente novamente.')
             return redirect(url_for('index'))
 
-        # Validate response structure
+        # Validate response structure with detailed logging
         if not isinstance(dados, dict):
             logger.error(f"Invalid response type: {type(dados)}")
             flash('Formato de resposta inválido. Por favor, tente novamente.')
             return redirect(url_for('index'))
 
         dados_api = dados.get('DADOS', {})
+        logger.info(f"DADOS content type: {type(dados_api)}")
+
         if not isinstance(dados_api, dict):
             logger.error(f"Invalid DADOS type: {type(dados_api)}")
             flash('Formato de dados inválido. Por favor, tente novamente.')
@@ -156,7 +167,7 @@ def consultar_cpf():
         }
 
         # Store in Flask session
-        flask.session['dados_usuario'] = dados_usuario
+        session['dados_usuario'] = dados_usuario
 
         return render_template('verificar_nome.html',
                           dados=dados_usuario,
