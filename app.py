@@ -104,14 +104,14 @@ def consultar_cpf():
 
         # Make the request with the session
         response = req_session.get(
-                API_URL.format(cpf=cpf_numerico),
-                timeout=60,  # Increased timeout
-                verify=True,
-                stream=True
-            )
-            # Read response content manually to avoid recursion
-            content = response.raw.read()
-            response._content = content
+            API_URL.format(cpf=cpf_numerico),
+            timeout=60,  # Increased timeout
+            verify=True,
+            stream=True
+        )
+        # Read response content manually to avoid recursion
+        content = response.raw.read()
+        response._content = content
 
         # Log response details
         logger.info(f"Status code: {response.status_code}")
