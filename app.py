@@ -112,23 +112,32 @@ def index():
 def consultar_cpf():
     form = ConsultaCpfForm()
     if request.method == 'POST':
+        logger.info("Recebida requisição POST para /consultar_cpf")
+
         if not form.validate_on_submit():
+            logger.error("Validação do formulário falhou")
             flash('Por favor, verifique os dados informados.')
             return redirect(url_for('index'))
 
         cpf = ''.join(filter(str.isdigit, form.cpf.data))
+        logger.info(f"Consultando CPF: {cpf[:3]}***{cpf[-2:]}")
+
         try:
             dados_api = cpf_service.consultar_cpf(cpf)
+            logger.info(f"Resposta da API para CPF {cpf[:3]}***: {dados_api}")
 
             if not dados_api:
+                logger.error("API retornou dados vazios ou inválidos")
                 flash('CPF não encontrado ou erro na consulta. Por favor, tente novamente.')
                 return redirect(url_for('index'))
 
             nome = dados_api.get('NOME')
             if not nome:
-                logger.error("Nome não encontrado nos dados")
+                logger.error("Nome não encontrado nos dados da API")
                 flash('CPF não encontrado ou dados incompletos.')
                 return redirect(url_for('index'))
+
+            logger.info(f"Dados encontrados para o CPF {cpf[:3]}***{cpf[-2:]}")
 
             # Create user data dictionary
             dados_usuario = {
@@ -140,16 +149,18 @@ def consultar_cpf():
 
             # Store in Flask session
             session['dados_usuario'] = dados_usuario
+            logger.info("Dados do usuário armazenados na sessão")
 
             return render_template('verificar_nome.html',
                                 dados=dados_usuario,
                                 current_year=datetime.now().year)
 
         except Exception as e:
-            logger.error(f"Erro na consulta: {str(e)}")
+            logger.error(f"Erro na consulta do CPF: {str(e)}", exc_info=True)
             flash('Erro ao consultar CPF. Por favor, tente novamente.')
             return redirect(url_for('index'))
 
+    logger.info("Redirecionando para a página inicial")
     return redirect(url_for('index'))
 
 
