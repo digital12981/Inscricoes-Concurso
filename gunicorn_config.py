@@ -1,8 +1,8 @@
 import multiprocessing
 import os
 
-# Número de workers baseado no número de cores
-workers = multiprocessing.cpu_count() * 2 + 1
+# Reduce number of workers to minimize memory usage
+workers = 2  # Fixed number instead of dynamic calculation
 
 # Tempo limite de resposta em segundos
 timeout = 120
@@ -16,9 +16,14 @@ accesslog = '-'
 errorlog = '-'
 loglevel = 'info'
 
-# Configurações de buffer
+# Configurações de buffer e memory management
 worker_class = 'gevent'
-worker_connections = 2000
+worker_connections = 1000
+keepalive = 5
+
+# Preload app to share memory
+preload_app = True
+
 
 # Bind to Heroku's dynamic port
 bind = f"0.0.0.0:{int(os.environ.get('PORT', 5000))}"

@@ -54,3 +54,5 @@ gunicorn
 psycopg2-binary
 requests
 trafilatura
+flask-login
+flask-wtf

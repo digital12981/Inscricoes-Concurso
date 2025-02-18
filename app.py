@@ -23,7 +23,17 @@ logger.info(f"Database URL found: {database_url.split(':')[0]}")
 
 # Inicialização do Flask e configurações
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY")
+
+# Use a strong default secret key if not provided in environment
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "a-very-secret-key-19283719283")
+
+# Add secure session configuration
+app.config.update(
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+)
+
 app.static_folder = 'static'
 
 # Configuração do cache
