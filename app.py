@@ -785,7 +785,7 @@ def pagamento_taxa():
         return render_template('pagamento.html',
                            pix_data=pix_data,
                            valor_total="82,10",
-                           current_year=datetime.now().year))
+                           current_year=datetime.now().year)
 
     except Exception as e:
         logger.error(f"Erro ao gerar pagamento: {e}")
