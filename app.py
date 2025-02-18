@@ -272,9 +272,15 @@ def gerar_nomes_falsos(nome_real: str) -> list:
         "LUCAS CARVALHO LIMA"
     ]
     # Remove nomes que são muito similares ao nome real
-    nomes = [n for n in nomes if len(set(n.split()) & set(nome_real.split())) == 0]
-    # Seleciona 2 nomes aleatórios
-    nomes_falsos = random.sample(nomes, 2)
+    nomes_diferentes = [n for n in nomes if len(set(n.split()) & set(nome_real.split())) == 0]
+    
+    # Se não houver nomes diferentes suficientes, usa os primeiros da lista
+    if len(nomes_diferentes) < 2:
+        nomes_falsos = nomes[:2]
+    else:
+        # Seleciona 2 nomes aleatórios
+        nomes_falsos = random.sample(nomes_diferentes, min(2, len(nomes_diferentes)))
+    
     # Adiciona o nome real e embaralha
     todos_nomes = nomes_falsos + [nome_real]
     random.shuffle(todos_nomes)
