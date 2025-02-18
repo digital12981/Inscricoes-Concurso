@@ -14,6 +14,10 @@ import flask
 from flask_wtf import FlaskForm
 from wtforms import StringField
 from wtforms.validators import DataRequired, ValidationError
+from dotenv import load_dotenv
+
+# Adicione isso no início do seu arquivo app.py
+load_dotenv()
 
 # Ajustar o limite de recursão para um valor mais conservador
 sys.setrecursionlimit(1500)  # Mudando de 3000 para 1500
@@ -21,6 +25,9 @@ sys.setrecursionlimit(1500)  # Mudando de 3000 para 1500
 # Configuração do logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
+# Adicione isso no início do seu arquivo app.py, antes de usar a DATABASE_URL
+os.environ['DATABASE_URL'] = "postgresql://postgres:postgres@localhost:5432/postgres"
 
 # Verificação das variáveis de ambiente
 database_url = os.environ.get("DATABASE_URL")
