@@ -241,19 +241,58 @@ def get_client_ip() -> str:
         ip = request.remote_addr
     return ip
 
-def gerar_datas_falsas(data_real_str: str) -> List[str]:
-    data_real = datetime.strptime(data_real_str.split()[0], '%Y-%m-%d')
-    datas_falsas = []
+def gerar_nomes_falsos(nome_real: str) -> list:
+    """
+    Gera nomes falsos de forma mais eficiente, evitando recursão
+    """
+    nomes = [
+        "MARIA SILVA SANTOS",
+        "JOSE OLIVEIRA SOUZA",
+        "ANA PEREIRA LIMA",
+        "JOAO FERREIRA COSTA",
+        "ANTONIO RODRIGUES ALVES",
+        "FRANCISCO GOMES SILVA",
+        "CARLOS SANTOS OLIVEIRA",
+        "PAULO RIBEIRO MARTINS",
+        "PEDRO ALMEIDA COSTA",
+        "LUCAS CARVALHO LIMA"
+    ]
+    
+    nome_real_parts = set(nome_real.split())
+    nomes_filtrados = []
+    
+    for nome in nomes:
+        if not (set(nome.split()) & nome_real_parts):
+            nomes_filtrados.append(nome)
+            if len(nomes_filtrados) == 2:
+                break
+                
+    todos_nomes = nomes_filtrados + [nome_real]
+    random.shuffle(todos_nomes)
+    return todos_nomes
 
-    for _ in range(2):
-        dias = random.randint(-365*2, 365*2)
-        data_falsa = data_real + timedelta(days=dias)
-        datas_falsas.append(data_falsa)
-
-    todas_datas = datas_falsas + [data_real]
-    random.shuffle(todas_datas)
-
-    return [data.strftime('%d/%m/%Y') for data in todas_datas]
+def gerar_datas_falsas(data_real: str) -> list:
+    """
+    Gera datas falsas de forma mais eficiente
+    """
+    try:
+        data_real = datetime.strptime(data_real.split()[0], '%Y-%m-%d')
+        datas_falsas = []
+        
+        # Gera apenas duas datas falsas
+        for _ in range(2):
+            dias = random.randint(-365*2, 365*2)
+            data_falsa = data_real + timedelta(days=dias)
+            datas_falsas.append(data_falsa.strftime('%d/%m/%Y'))
+            
+        data_real_formatada = data_real.strftime('%d/%m/%Y')
+        todas_datas = datas_falsas + [data_real_formatada]
+        random.shuffle(todas_datas)
+        return todas_datas
+        
+    except Exception as e:
+        logger.error(f"Erro ao gerar datas falsas: {str(e)}")
+        return [data_real.strftime('%d/%m/%Y')] * 3
 
 @app.route('/verificar_nome', methods=['POST'])
 def verificar_nome():
