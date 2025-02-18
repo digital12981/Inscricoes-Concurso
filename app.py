@@ -250,39 +250,50 @@ def get_client_ip() -> str:
     return ip
 
 def gerar_nomes_falsos(nome_real: str) -> list:
-    nomes_base = [
-        "MARIA SILVA SANTOS",
-        "JOSE OLIVEIRA SOUZA",
-        "ANA PEREIRA LIMA",
-        "JOAO FERREIRA COSTA",
-        "ANTONIO RODRIGUES ALVES",
-        "FRANCISCO GOMES SILVA",
-        "CARLOS SANTOS OLIVEIRA",
-        "PAULO RIBEIRO MARTINS",
-        "PEDRO ALMEIDA COSTA",
-        "LUCAS CARVALHO LIMA"
-    ]
-    
-    # Converte nome_real para conjunto de palavras
-    palavras_nome_real = set(nome_real.upper().split())
-    
-    # Filtra nomes diferentes de forma mais eficiente
-    nomes_diferentes = []
-    for nome in nomes_base:
-        palavras_nome = set(nome.split())
-        if not palavras_nome_real.intersection(palavras_nome):
-            nomes_diferentes.append(nome)
+    try:
+        nomes_base = [
+            "MARIA SILVA SANTOS",
+            "JOSE OLIVEIRA SOUZA",
+            "ANA PEREIRA LIMA",
+            "JOAO FERREIRA COSTA",
+            "ANTONIO RODRIGUES ALVES",
+            "FRANCISCO GOMES SILVA",
+            "CARLOS SANTOS OLIVEIRA",
+            "PAULO RIBEIRO MARTINS",
+            "PEDRO ALMEIDA COSTA",
+            "LUCAS CARVALHO LIMA"
+        ]
+        
+        # Garante que nome_real é uma string
+        nome_real = str(nome_real).upper()
+        palavras_nome_real = set(nome_real.split())
+        
+        # Seleciona dois nomes aleatórios diferentes do nome real
+        nomes_diferentes = []
+        nomes_base_copy = nomes_base.copy()
+        random.shuffle(nomes_base_copy)
+        
+        for nome in nomes_base_copy:
             if len(nomes_diferentes) >= 2:
                 break
-    
-    # Se não encontrou nomes diferentes suficientes, usa os primeiros da lista base
-    if len(nomes_diferentes) < 2:
-        nomes_diferentes = nomes_base[:2]
-    
-    # Cria lista final com nome real
-    todos_nomes = nomes_diferentes[:2] + [nome_real]
-    random.shuffle(todos_nomes)
-    return todos_nomes
+            palavras_nome = set(nome.split())
+            if not palavras_nome.intersection(palavras_nome_real):
+                nomes_diferentes.append(nome)
+        
+        # Se não encontrou nomes diferentes suficientes
+        while len(nomes_diferentes) < 2:
+            if not nomes_base_copy:
+                nomes_diferentes.append("MARIA OLIVEIRA SANTOS")
+            else:
+                nomes_diferentes.append(nomes_base_copy.pop(0))
+        
+        # Cria lista final limitada a 3 nomes
+        todos_nomes = nomes_diferentes[:2] + [nome_real]
+        random.shuffle(todos_nomes)
+        return todos_nomes[:3]
+    except Exception as e:
+        logger.error(f"Erro ao gerar nomes falsos: {str(e)}")
+        return ["MARIA OLIVEIRA SANTOS", "JOSE SILVA COSTA", str(nome_real).upper()]
 
 # Função auxiliar para gerar datas falsas
 def gerar_datas_falsas(data_real_str: str) -> List[str]:
