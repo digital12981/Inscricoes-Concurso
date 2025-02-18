@@ -39,6 +39,8 @@ app.config.update(
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
+    WTF_CSRF_ENABLED=True,
+    WTF_CSRF_SECRET_KEY=app.secret_key
 )
 
 app.static_folder = 'static'
@@ -110,9 +112,12 @@ def index():
 
 @app.route('/consultar_cpf', methods=['GET', 'POST'])
 def consultar_cpf():
+    logger.info("Recebida requisição POST para /consultar_cpf")
     form = ConsultaCpfForm()
+
     if request.method == 'POST':
-        logger.info("Recebida requisição POST para /consultar_cpf")
+        logger.info(f"Form data: {request.form}")
+        logger.info(f"Form validation: {form.validate_on_submit()}")
 
         if not form.validate_on_submit():
             logger.error("Validação do formulário falhou")
@@ -162,7 +167,6 @@ def consultar_cpf():
 
     logger.info("Redirecionando para a página inicial")
     return redirect(url_for('index'))
-
 
 ESTADOS = {
     'Acre': 'AC',
