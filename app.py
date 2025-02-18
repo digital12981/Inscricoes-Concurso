@@ -11,9 +11,6 @@ from flask_caching import Cache
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import flask
-from flask_wtf import FlaskForm
-from wtforms import StringField
-from wtforms.validators import DataRequired, ValidationError
 from dotenv import load_dotenv
 
 # Adicione isso no início do seu arquivo app.py
@@ -47,15 +44,13 @@ app = Flask(__name__)
 # Use a strong default secret key if not provided in environment
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "a-very-secret-key-19283719283")
 
-# Add secure session configuration
+# Configurações simplificadas
 app.config.update(
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
-    WTF_CSRF_ENABLED=True,
-    WTF_CSRF_SECRET_KEY=os.environ.get("FLASK_SECRET_KEY", "sdasdasdasdasdas"),
-    WTF_CSRF_TIME_LIMIT=3600,  # 1 hora de validade para o token
-    MAX_CONTENT_LENGTH=16 * 1024 * 1024  # 16MB limit
+    MAX_CONTENT_LENGTH=16 * 1024 * 1024,  # 16MB limit
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=1)
 )
 
 app.static_folder = 'static'
@@ -102,51 +97,32 @@ from services.utils import gerar_nomes_falsos
 API_URL = "https://consulta.fontesderenda.blog/?token=4da265ab-0452-4f87-86be-8d83a04a745a&cpf={cpf}"
 cpf_service = CpfService(API_URL, "4da265ab-0452-4f87-86be-8d83a04a745a")
 
-
-class ConsultaCpfForm(FlaskForm):
-    cpf = StringField('CPF', validators=[DataRequired()])
-
-    def validate_cpf(self, field):
-        cpf = ''.join(filter(str.isdigit, field.data))
-        if len(cpf) != 11:
-            raise ValidationError('CPF inválido. Digite 11 números.')
-
+# Substituir a classe ConsultaCpfForm por uma função simples de validação
+def validar_cpf(cpf: str) -> bool:
+    cpf_numerico = ''.join(filter(str.isdigit, cpf))
+    return len(cpf_numerico) == 11
 
 @app.route('/')
 @cache.cached(timeout=60)  # Cache da página inicial por 1 minuto
 def index():
     today = datetime.now()
     logger.debug(f"Current date - Year: {today.year}, Month: {today.month}, Day: {today.day}")
-    form = ConsultaCpfForm()
     return render_template('index.html',
-                         form=form,
                          current_year=today.year,
                          current_month=str(today.month).zfill(2),
                          current_day=str(today.day).zfill(2))
 
-
 @app.route('/consultar_cpf', methods=['GET', 'POST'])
 def consultar_cpf():
     logger.info("Recebida requisição POST para /consultar_cpf")
-    form = ConsultaCpfForm()
     
-    # Adicionar log para debug do token
-    logger.debug(f"Form CSRF Token: {form.csrf_token.current_token}")
-    logger.debug(f"Session CSRF Token: {session.get('csrf_token')}")
-
     if request.method == 'POST':
         logger.info(f"Form data: {request.form}")
+        cpf = request.form.get('cpf', '').strip()
         
-        # Validar o formulário sem verificar CSRF em desenvolvimento
-        if app.debug or form.validate_on_submit():
+        if validar_cpf(cpf):
             try:
-                cpf = form.cpf.data.strip()
                 cpf_numerico = ''.join(filter(str.isdigit, cpf))
-
-                if not cpf_numerico or len(cpf_numerico) != 11:
-                    flash('CPF inválido. Por favor, digite um CPF válido.')
-                    return redirect(url_for('index'))
-
                 logger.info(f"Consultando CPF: {cpf[:3]}***{cpf[-2:]}")
 
                 try:
@@ -166,7 +142,6 @@ def consultar_cpf():
 
                     logger.info(f"Dados encontrados para o CPF {cpf[:3]}***{cpf[-2:]}")
 
-                    # Create user data dictionary
                     dados_usuario = {
                         'cpf': cpf,
                         'nome_real': nome,
@@ -174,7 +149,6 @@ def consultar_cpf():
                         'nomes': gerar_nomes_falsos(nome)
                     }
 
-                    # Store in Flask session
                     session['dados_usuario'] = dados_usuario
                     logger.info("Dados do usuário armazenados na sessão")
 
@@ -192,9 +166,7 @@ def consultar_cpf():
                 flash('Erro ao consultar CPF. Por favor, tente novamente.')
                 return redirect(url_for('index'))
         else:
-            logger.error("Validação do formulário falhou")
-            logger.error(f"Erros do formulário: {form.errors}")
-            flash('Por favor, verifique os dados informados.')
+            flash('CPF inválido. Por favor, digite um CPF válido.')
             return redirect(url_for('index'))
 
     return redirect(url_for('index'))
@@ -842,16 +814,18 @@ def gzip_response(response):
 
 @app.after_request
 def after_request(response):
-    return gzip_response(response)
+    response = gzip_response(response)
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    return response
 
 # Adicionar função para limpar sessão expirada
 @app.before_request
 def clear_expired_session():
-    if 'csrf_token' in session and 'csrf_time' in session:
-        token_time = session.get('csrf_time', 0)
-        if (datetime.now() - datetime.fromtimestamp(token_time)).total_seconds() > 3600:
-            session.pop('csrf_token', None)
-            session.pop('csrf_time', None)
+    if not session.get('_fresh', False):
+        session.clear()
+        session.permanent = True
 
 # Adicione essa configuração para gerenciar melhor as conexões
 @app.teardown_appcontext
