@@ -5,7 +5,7 @@ import random
 import gzip
 import sys
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from flask import Flask, render_template, url_for, request, redirect, flash, session, jsonify, after_this_request
 from flask_caching import Cache
 from flask_sqlalchemy import SQLAlchemy
@@ -54,7 +54,8 @@ app.config.update(
     SESSION_COOKIE_SAMESITE='Lax',
     WTF_CSRF_ENABLED=True,
     WTF_CSRF_SECRET_KEY=os.environ.get("FLASK_SECRET_KEY", "sdasdasdasdasdas"),
-    WTF_CSRF_TIME_LIMIT=3600  # 1 hora de validade para o token
+    WTF_CSRF_TIME_LIMIT=3600,  # 1 hora de validade para o token
+    MAX_CONTENT_LENGTH=16 * 1024 * 1024  # 16MB limit
 )
 
 app.static_folder = 'static'
@@ -62,15 +63,15 @@ app.static_folder = 'static'
 # Configuração do cache
 cache = Cache(app, config={
     'CACHE_TYPE': 'simple',
-    'CACHE_DEFAULT_TIMEOUT': 600
+    'CACHE_DEFAULT_TIMEOUT': 300  # Reduzindo para 5 minutos
 })
 
 # Configuração do SQLAlchemy
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-    "pool_size": 5,
+    "pool_size": 5,  # Reduzindo o pool size
     "max_overflow": 10,
-    "pool_timeout": 30,
+    "pool_timeout": 10,  # Reduzindo o timeout
     "pool_recycle": 300,
     "pool_pre_ping": True,
 }
@@ -851,6 +852,11 @@ def clear_expired_session():
         if (datetime.now() - datetime.fromtimestamp(token_time)).total_seconds() > 3600:
             session.pop('csrf_token', None)
             session.pop('csrf_time', None)
+
+# Adicione essa configuração para gerenciar melhor as conexões
+@app.teardown_appcontext
+def shutdown_session(exception=None):
+    db.session.remove()
 
 port = os.getenv('PORT', 5000)
 if __name__ == '__main__':
