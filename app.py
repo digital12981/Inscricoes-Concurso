@@ -29,6 +29,13 @@ logger = logging.getLogger(__name__)
 # Adicione isso no início do seu arquivo app.py, antes de usar a DATABASE_URL
 os.environ['DATABASE_URL'] = "postgresql://postgres:postgres@localhost:5432/postgres"
 
+# Configuração da URL do banco de dados
+database_url = os.getenv('DATABASE_URL', "postgresql://postgres:postgres@localhost:5432/postgres")
+
+# Ajuste para compatibilidade com URLs do Heroku PostgreSQL
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
 # Verificação das variáveis de ambiente
 database_url = os.environ.get("DATABASE_URL")
 if not database_url:
