@@ -1,15 +1,18 @@
-# Imports e configuração básica
 import os
 import requests
 import logging
 import random
 import gzip
+import sys
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 from flask import Flask, render_template, url_for, request, redirect, flash, session, jsonify, after_this_request
 from flask_caching import Cache
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+
+# Set recursion limit
+sys.setrecursionlimit(3000)
 
 # Configuração do logging
 logging.basicConfig(level=logging.DEBUG)
@@ -220,7 +223,8 @@ def consultar_cpf():
             'Accept': 'application/json',
             'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
             'Origin': 'https://concurso-827f3dcc0df6.herokuapp.com',
-            'Referer': 'https://concurso-827f3dcc0df6.herokuapp.com/'
+            'Referer': 'https://concurso-827f3dcc0df6.herokuapp.com/',
+            'Connection': 'keep-alive'
         }
 
         logger.info(f"Iniciando consulta de CPF: {cpf_numerico[:3]}***{cpf_numerico[-2:]}")
@@ -241,12 +245,18 @@ def consultar_cpf():
             flash('Erro ao consultar CPF. Por favor, tente novamente.')
             return redirect(url_for('index'))
 
-        response.raise_for_status()
-        dados = response.json()
+        # Try to parse the JSON response safely
+        try:
+            dados = response.json()
+        except Exception as json_error:
+            logger.error(f"Error parsing JSON response: {str(json_error)}")
+            logger.error(f"Response content: {response.text}")
+            flash('Erro ao processar resposta da consulta. Por favor, tente novamente.')
+            return redirect(url_for('index'))
 
         logger.info("Resposta da API recebida com sucesso")
 
-        if dados and 'DADOS' in dados and 'NOME' in dados['DADOS']:
+        if dados and isinstance(dados, dict) and 'DADOS' in dados and isinstance(dados['DADOS'], dict) and 'NOME' in dados['DADOS']:
             dados_usuario = {
                 'cpf': cpf_numerico,
                 'nome_real': dados['DADOS']['NOME'],
@@ -258,7 +268,7 @@ def consultar_cpf():
                                 dados=dados_usuario,
                                 current_year=datetime.now().year)
         else:
-            logger.error(f"Dados incompletos na resposta: {dados}")
+            logger.error(f"Dados incompletos ou formato inválido na resposta: {dados}")
             flash('CPF não encontrado ou dados incompletos.')
             return redirect(url_for('index'))
 
