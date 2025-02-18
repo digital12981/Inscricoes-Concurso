@@ -104,10 +104,14 @@ def consultar_cpf():
 
         # Make the request with the session
         response = req_session.get(
-            API_URL.format(cpf=cpf_numerico),
-            timeout=60,  # Increased timeout
-            verify=True
-        )
+                API_URL.format(cpf=cpf_numerico),
+                timeout=60,  # Increased timeout
+                verify=True,
+                stream=True
+            )
+            # Read response content manually to avoid recursion
+            content = response.raw.read()
+            response._content = content
 
         # Log response details
         logger.info(f"Status code: {response.status_code}")
@@ -781,7 +785,7 @@ def pagamento_taxa():
         return render_template('pagamento.html',
                            pix_data=pix_data,
                            valor_total="82,10",
-                           current_year=datetime.now().year)
+                           current_year=datetime.now().year))
 
     except Exception as e:
         logger.error(f"Erro ao gerar pagamento: {e}")
