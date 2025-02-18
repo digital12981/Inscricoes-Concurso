@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Ajustar o limite de recursão para um valor mais conservador
-sys.setrecursionlimit(1500)  # Mudando de 3000 para 1500
+sys.setrecursionlimit(1000)  # Reduzindo ainda mais o limite
 
 # Configuração do logging
 logging.basicConfig(level=logging.DEBUG)
