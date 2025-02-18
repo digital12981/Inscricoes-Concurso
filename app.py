@@ -84,6 +84,7 @@ cpf_service = CpfService(API_URL, "4da265ab-0452-4f87-86be-8d83a04a745a")
 @app.route('/consultar_cpf', methods=['POST'])
 def consultar_cpf():
     cpf = request.form.get('cpf', '').strip()
+    cpf_numerico = ''.join(filter(str.isdigit, cpf))
     
     try:
         dados_api = cpf_service.consultar_cpf(cpf)

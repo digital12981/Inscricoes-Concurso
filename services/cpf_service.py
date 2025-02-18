@@ -34,8 +34,10 @@ class CpfService:
 
             logger.info(f"Iniciando consulta de CPF: {cpf_numerico[:3]}***{cpf_numerico[-2:]}")
             
+            logger.info(f"Fazendo requisição para URL: {url}")
             response = session.get(url, timeout=60, verify=True)
             logger.info(f"Status code: {response.status_code}")
+            logger.info(f"Response body: {response.text[:500]}")
             
             if response.status_code != 200:
                 logger.error(f"API returned non-200 status code: {response.status_code}")
