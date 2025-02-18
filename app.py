@@ -214,12 +214,37 @@ def consultar_cpf():
         return redirect(url_for('index'))
 
     try:
+        # Add headers to mimic a browser request
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'application/json',
+            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Origin': 'https://concurso-827f3dcc0df6.herokuapp.com',
+            'Referer': 'https://concurso-827f3dcc0df6.herokuapp.com/'
+        }
+
+        logger.info(f"Iniciando consulta de CPF: {cpf_numerico[:3]}***{cpf_numerico[-2:]}")
         response = requests.get(
             API_URL.format(cpf=cpf_numerico),
-            timeout=30
+            headers=headers,
+            timeout=30,
+            verify=True
         )
+
+        # Log the response details for debugging
+        logger.info(f"Status code: {response.status_code}")
+        logger.info(f"Response headers: {dict(response.headers)}")
+
+        if response.status_code != 200:
+            logger.error(f"API returned non-200 status code: {response.status_code}")
+            logger.error(f"Response content: {response.text}")
+            flash('Erro ao consultar CPF. Por favor, tente novamente.')
+            return redirect(url_for('index'))
+
         response.raise_for_status()
         dados = response.json()
+
+        logger.info("Resposta da API recebida com sucesso")
 
         if dados and 'DADOS' in dados and 'NOME' in dados['DADOS']:
             dados_usuario = {
@@ -233,11 +258,24 @@ def consultar_cpf():
                                 dados=dados_usuario,
                                 current_year=datetime.now().year)
         else:
+            logger.error(f"Dados incompletos na resposta: {dados}")
             flash('CPF não encontrado ou dados incompletos.')
             return redirect(url_for('index'))
 
+    except requests.exceptions.Timeout:
+        logger.error("Timeout ao consultar a API")
+        flash('Tempo limite excedido. Por favor, tente novamente.')
+        return redirect(url_for('index'))
+    except requests.exceptions.ConnectionError as e:
+        logger.error(f"Erro de conexão: {str(e)}")
+        flash('Erro de conexão. Por favor, verifique sua internet e tente novamente.')
+        return redirect(url_for('index'))
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Erro na requisição: {str(e)}")
+        flash('Erro ao consultar CPF. Por favor, tente novamente.')
+        return redirect(url_for('index'))
     except Exception as e:
-        logger.error(f"Erro na consulta: {str(e)}")
+        logger.error(f"Erro inesperado na consulta: {str(e)}")
         flash('Erro ao consultar CPF. Por favor, tente novamente.')
         return redirect(url_for('index'))
 
