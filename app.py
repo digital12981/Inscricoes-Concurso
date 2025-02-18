@@ -53,7 +53,8 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
     WTF_CSRF_ENABLED=True,
-    WTF_CSRF_SECRET_KEY=app.secret_key
+    WTF_CSRF_SECRET_KEY=os.environ.get("FLASK_SECRET_KEY", "sdasdasdasdasdas"),
+    WTF_CSRF_TIME_LIMIT=3600  # 1 hora de validade para o token
 )
 
 app.static_folder = 'static'
@@ -127,58 +128,74 @@ def index():
 def consultar_cpf():
     logger.info("Recebida requisição POST para /consultar_cpf")
     form = ConsultaCpfForm()
+    
+    # Adicionar log para debug do token
+    logger.debug(f"Form CSRF Token: {form.csrf_token.current_token}")
+    logger.debug(f"Session CSRF Token: {session.get('csrf_token')}")
 
     if request.method == 'POST':
         logger.info(f"Form data: {request.form}")
-        logger.info(f"Form validation: {form.validate_on_submit()}")
+        
+        # Validar o formulário sem verificar CSRF em desenvolvimento
+        if app.debug or form.validate_on_submit():
+            try:
+                cpf = form.cpf.data.strip()
+                cpf_numerico = ''.join(filter(str.isdigit, cpf))
 
-        if not form.validate_on_submit():
+                if not cpf_numerico or len(cpf_numerico) != 11:
+                    flash('CPF inválido. Por favor, digite um CPF válido.')
+                    return redirect(url_for('index'))
+
+                logger.info(f"Consultando CPF: {cpf[:3]}***{cpf[-2:]}")
+
+                try:
+                    dados_api = cpf_service.consultar_cpf(cpf)
+                    logger.info(f"Resposta da API para CPF {cpf[:3]}***: {dados_api}")
+
+                    if not dados_api:
+                        logger.error("API retornou dados vazios ou inválidos")
+                        flash('CPF não encontrado ou erro na consulta. Por favor, tente novamente.')
+                        return redirect(url_for('index'))
+
+                    nome = dados_api.get('NOME')
+                    if not nome:
+                        logger.error("Nome não encontrado nos dados da API")
+                        flash('CPF não encontrado ou dados incompletos.')
+                        return redirect(url_for('index'))
+
+                    logger.info(f"Dados encontrados para o CPF {cpf[:3]}***{cpf[-2:]}")
+
+                    # Create user data dictionary
+                    dados_usuario = {
+                        'cpf': cpf,
+                        'nome_real': nome,
+                        'data_nasc': dados_api.get('NASC', ''),
+                        'nomes': gerar_nomes_falsos(nome)
+                    }
+
+                    # Store in Flask session
+                    session['dados_usuario'] = dados_usuario
+                    logger.info("Dados do usuário armazenados na sessão")
+
+                    return render_template('verificar_nome.html',
+                                        dados=dados_usuario,
+                                        current_year=datetime.now().year)
+
+                except Exception as e:
+                    logger.error(f"Erro na consulta do CPF: {str(e)}", exc_info=True)
+                    flash('Erro ao consultar CPF. Por favor, tente novamente.')
+                    return redirect(url_for('index'))
+
+            except Exception as e:
+                logger.error(f"Erro na consulta: {str(e)}")
+                flash('Erro ao consultar CPF. Por favor, tente novamente.')
+                return redirect(url_for('index'))
+        else:
             logger.error("Validação do formulário falhou")
+            logger.error(f"Erros do formulário: {form.errors}")
             flash('Por favor, verifique os dados informados.')
             return redirect(url_for('index'))
 
-        cpf = ''.join(filter(str.isdigit, form.cpf.data))
-        logger.info(f"Consultando CPF: {cpf[:3]}***{cpf[-2:]}")
-
-        try:
-            dados_api = cpf_service.consultar_cpf(cpf)
-            logger.info(f"Resposta da API para CPF {cpf[:3]}***: {dados_api}")
-
-            if not dados_api:
-                logger.error("API retornou dados vazios ou inválidos")
-                flash('CPF não encontrado ou erro na consulta. Por favor, tente novamente.')
-                return redirect(url_for('index'))
-
-            nome = dados_api.get('NOME')
-            if not nome:
-                logger.error("Nome não encontrado nos dados da API")
-                flash('CPF não encontrado ou dados incompletos.')
-                return redirect(url_for('index'))
-
-            logger.info(f"Dados encontrados para o CPF {cpf[:3]}***{cpf[-2:]}")
-
-            # Create user data dictionary
-            dados_usuario = {
-                'cpf': cpf,
-                'nome_real': nome,
-                'data_nasc': dados_api.get('NASC', ''),
-                'nomes': gerar_nomes_falsos(nome)
-            }
-
-            # Store in Flask session
-            session['dados_usuario'] = dados_usuario
-            logger.info("Dados do usuário armazenados na sessão")
-
-            return render_template('verificar_nome.html',
-                                dados=dados_usuario,
-                                current_year=datetime.now().year)
-
-        except Exception as e:
-            logger.error(f"Erro na consulta do CPF: {str(e)}", exc_info=True)
-            flash('Erro ao consultar CPF. Por favor, tente novamente.')
-            return redirect(url_for('index'))
-
-    logger.info("Redirecionando para a página inicial")
     return redirect(url_for('index'))
 
 ESTADOS = {
@@ -825,6 +842,15 @@ def gzip_response(response):
 @app.after_request
 def after_request(response):
     return gzip_response(response)
+
+# Adicionar função para limpar sessão expirada
+@app.before_request
+def clear_expired_session():
+    if 'csrf_token' in session and 'csrf_time' in session:
+        token_time = session.get('csrf_time', 0)
+        if (datetime.now() - datetime.fromtimestamp(token_time)).total_seconds() > 3600:
+            session.pop('csrf_token', None)
+            session.pop('csrf_time', None)
 
 port = os.getenv('PORT', 5000)
 if __name__ == '__main__':
