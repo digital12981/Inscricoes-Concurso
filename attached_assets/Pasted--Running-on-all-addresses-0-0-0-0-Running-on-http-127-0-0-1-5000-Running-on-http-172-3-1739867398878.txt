@@ -1,0 +1,45 @@
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.31.128.74:5000
+INFO:werkzeug:Press CTRL+C to quit
+INFO:werkzeug: * Restarting with stat
+INFO:app:Database URL found: postgresql
+INFO:app:Initializing SQLAlchemy with configuration
+INFO:app:SQLAlchemy and Flask-Migrate initialized successfully
+INFO:app:Attempting to create database tables
+INFO:app:Database tables created successfully
+WARNING:werkzeug: * Debugger is active!
+INFO:werkzeug: * Debugger PIN: 118-328-280
+DEBUG:app:Current date - Year: 2025, Month: 2, Day: 18
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:28:42] "GET / HTTP/1.1" 200 -
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:28:43] "GET /static/css/rawline.css HTTP/1.1" 304 -
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:28:43] "GET /static/fonts/rawline-400.woff2 HTTP/1.1" 304 -
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:28:43] "GET /static/fonts/rawline-700.woff2 HTTP/1.1" 304 -
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:28:44] "GET /static/fonts/rawline-500.woff2 HTTP/1.1" 304 -
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:28:44] "GET /static/fonts/rawline-600.woff2 HTTP/1.1" 304 -
+INFO:flask_caching:Cache used for key: view//
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:28:44] "GET / HTTP/1.1" 200 -
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:28:44] "GET /static/fonts/rawline-400.woff2 HTTP/1.1" 200 -
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:28:44] "GET /static/css/rawline.css HTTP/1.1" 200 -
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:28:44] "GET /static/fonts/rawline-700.woff2 HTTP/1.1" 200 -
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:28:44] "GET /static/fonts/rawline-500.woff2 HTTP/1.1" 200 -
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:28:44] "GET /static/fonts/rawline-600.woff2 HTTP/1.1" 200 -
+INFO:flask_caching:Cache used for key: view//
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:28:44] "GET / HTTP/1.1" 200 -
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:28:45] "GET /static/fonts/rawline-400.woff2 HTTP/1.1" 304 -
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:28:45] "GET /static/fonts/rawline-700.woff2 HTTP/1.1" 304 -
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:28:45] "GET /static/css/rawline.css HTTP/1.1" 304 -
+INFO:flask_wtf.csrf:The CSRF token is missing.
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:28:53] "POST /consultar_cpf HTTP/1.1" 302 -
+INFO:flask_caching:Cache used for key: view//
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:28:53] "GET / HTTP/1.1" 200 -
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:28:53] "GET /static/fonts/rawline-700.woff2 HTTP/1.1" 304 -
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:28:53] "GET /static/fonts/rawline-400.woff2 HTTP/1.1" 304 -
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:28:53] "GET /static/css/rawline.css HTTP/1.1" 304 -
+INFO:flask_wtf.csrf:The CSRF token is missing.
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:28:59] "POST /consultar_cpf HTTP/1.1" 302 -
+INFO:flask_caching:Cache used for key: view//
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:29:00] "GET / HTTP/1.1" 200 -
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:29:00] "GET /static/fonts/rawline-400.woff2 HTTP/1.1" 304 -
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:29:00] "GET /static/css/rawline.css HTTP/1.1" 304 -
+INFO:werkzeug:172.31.128.74 - - [18/Feb/2025 08:29:00] "GET /static/fonts/rawline-700.woff2 HTTP/1.1" 304 -

