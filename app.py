@@ -76,80 +76,20 @@ with app.app_context():
         logger.error(f"Error creating database tables: {str(e)}")
         raise
 
+from services.cpf_service import CpfService
+
 API_URL = "https://consulta.fontesderenda.blog/?token=4da265ab-0452-4f87-86be-8d83a04a745a&cpf={cpf}"
+cpf_service = CpfService(API_URL, "4da265ab-0452-4f87-86be-8d83a04a745a")
 
 @app.route('/consultar_cpf', methods=['POST'])
 def consultar_cpf():
     cpf = request.form.get('cpf', '').strip()
-    cpf_numerico = ''.join(filter(str.isdigit, cpf))
-
-    if not cpf_numerico or len(cpf_numerico) != 11:
-        flash('CPF inválido. Por favor, digite um CPF válido.')
-        return redirect(url_for('index'))
-
+    
     try:
-        # Configure the session for requests
-        req_session = requests.Session()
-        req_session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'application/json, text/plain, */*',
-            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Origin': 'https://concurso-827f3dcc0df6.herokuapp.com',
-            'Referer': 'https://concurso-827f3dcc0df6.herokuapp.com/',
-            'Connection': 'keep-alive',
-            'Sec-Fetch-Dest': 'empty',
-            'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Site': 'cross-site'
-        })
-
-        logger.info(f"Iniciando consulta de CPF: {cpf_numerico[:3]}***{cpf_numerico[-2:]}")
-
-        # Make the request with the session
-        response = req_session.get(
-            API_URL.format(cpf=cpf_numerico),
-            timeout=60,
-            verify=True
-        )
-
-        # Log response details
-        logger.info(f"Status code: {response.status_code}")
-        logger.info(f"Response headers: {dict(response.headers)}")
-
-        if response.status_code != 200:
-            logger.error(f"API returned non-200 status code: {response.status_code}")
-            logger.error(f"Response content: {response.text}")
-            flash('Erro ao consultar CPF. Por favor, tente novamente.')
-            return redirect(url_for('index'))
-
-        # Get the raw text first
-        response_text = response.text
-        logger.info(f"Raw response text (first 500 chars): {response_text[:500]}")
-
-        # Try to parse JSON response with error handling
-        try:
-            dados = {}
-            response_text = response_text.strip()
-            if response_text:  # Only try to parse if we have content
-                dados = response.json()
-                logger.info(f"JSON parsed successfully. Keys: {list(dados.keys()) if isinstance(dados, dict) else 'Not a dict'}")
-        except Exception as json_error:
-            logger.error(f"Error parsing JSON response: {str(json_error)}")
-            logger.error(f"Response content: {response_text}")
-            flash('Erro ao processar resposta da consulta. Por favor, tente novamente.')
-            return redirect(url_for('index'))
-
-        # Validate response structure with detailed logging
-        if not isinstance(dados, dict):
-            logger.error(f"Invalid response type: {type(dados)}")
-            flash('Formato de resposta inválido. Por favor, tente novamente.')
-            return redirect(url_for('index'))
-
-        dados_api = dados.get('DADOS', {})
-        logger.info(f"DADOS content type: {type(dados_api)}")
-
-        if not isinstance(dados_api, dict):
-            logger.error(f"Invalid DADOS type: {type(dados_api)}")
-            flash('Formato de dados inválido. Por favor, tente novamente.')
+        dados_api = cpf_service.consultar_cpf(cpf)
+        
+        if not dados_api:
+            flash('CPF não encontrado ou erro na consulta. Por favor, tente novamente.')
             return redirect(url_for('index'))
 
         nome = dados_api.get('NOME')
