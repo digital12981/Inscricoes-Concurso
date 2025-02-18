@@ -88,25 +88,30 @@ def consultar_cpf():
         session = requests.Session()
         session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'application/json',
+            'Accept': 'application/json, text/plain, */*',
             'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
             'Origin': 'https://concurso-827f3dcc0df6.herokuapp.com',
             'Referer': 'https://concurso-827f3dcc0df6.herokuapp.com/',
-            'Connection': 'keep-alive'
+            'Connection': 'keep-alive',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'cross-site'
         })
 
         logger.info(f"Iniciando consulta de CPF: {cpf_numerico[:3]}***{cpf_numerico[-2:]}")
+        logger.info(f"URL da requisição: {API_URL.format(cpf=cpf_numerico)}")
 
         # Make the request with the session
         response = session.get(
             API_URL.format(cpf=cpf_numerico),
-            timeout=30,
+            timeout=60,  # Increased timeout
             verify=True
         )
 
         # Log response details
         logger.info(f"Status code: {response.status_code}")
         logger.info(f"Response headers: {dict(response.headers)}")
+        logger.info(f"Response content: {response.text[:500]}")  # Log first 500 chars of response
 
         if response.status_code != 200:
             logger.error(f"API returned non-200 status code: {response.status_code}")
@@ -116,9 +121,8 @@ def consultar_cpf():
 
         # Try to parse the JSON response
         try:
-            response_text = response.text
-            logger.debug(f"Raw response: {response_text[:200]}...")  # Log first 200 chars of response
             dados = response.json()
+            logger.info(f"JSON response parsed successfully: {str(dados)[:500]}")
         except Exception as json_error:
             logger.error(f"Error parsing JSON response: {str(json_error)}")
             logger.error(f"Response content: {response.text}")
