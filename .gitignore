@@ -1,27 +1,49 @@
-# Arquivos de byte compilados Python
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Distribuição/empacotamento
-dist/
+*.so
+.Python
+env/
 build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
 *.egg-info/
+.installed.cfg
 *.egg
 
-# Ambientes virtuais
+# Virtual Environment
 venv/
-env/
-.env/
-.venv/
 ENV/
-
-# IDEs e editores
+.venv/
+# IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+
+# Logs
+*.log
+
+# Local environment
+.env
+.env.local
+
+# Database
+*.sqlite3
+*.db
+
+# System
 .DS_Store
+Thumbs.db
 
 # Arquivos de teste e cobertura
 .coverage
@@ -30,18 +52,6 @@ htmlcov/
 .pytest_cache/
 coverage.xml
 *.cover
-
-# Logs
-*.log
-
-# Arquivos locais de configuração
-.env
-.env.local
-.env.*.local
-
-# Arquivos de banco de dados
-*.db
-*.sqlite3
 
 # Documentação
 docs/_build/

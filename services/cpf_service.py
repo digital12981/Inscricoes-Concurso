@@ -18,12 +18,18 @@ class CpfService:
             cpf_numerico = ''.join(filter(str.isdigit, cpf))
 
             if not cpf_numerico or len(cpf_numerico) != 11:
-                logger.error("CPF inválido")
+                logger.error(f"CPF inválido: {cpf}")
                 return None
 
             url = self.api_url.format(cpf=cpf_numerico)
 
+<<<<<<< HEAD
             # Criar uma nova sessão com configurações otimizadas
+=======
+            logger.info(f"Iniciando consulta para CPF: {cpf_numerico[:3]}***{cpf_numerico[-2:]}")
+            logger.info(f"URL da requisição: {url}")
+
+>>>>>>> 03be2f49752bffd1ecaa7a846874e6f94db870a6
             session = requests.Session()
             adapter = requests.adapters.HTTPAdapter(
                 max_retries=3,
@@ -41,6 +47,7 @@ class CpfService:
                 'Referer': 'https://concurso-827f3dcc0df6.herokuapp.com/',
             })
 
+<<<<<<< HEAD
             logger.info(f"Iniciando consulta de CPF: {cpf_numerico[:3]}***{cpf_numerico[-2:]}")
             
             # Adicionar timeout e limitar o tamanho da resposta
@@ -75,6 +82,39 @@ class CpfService:
             return None
         except Exception as e:
             logger.error(f"Erro inesperado na consulta do CPF: {str(e)}")
+=======
+            try:
+                response = session.get(url, timeout=30, verify=True)
+                logger.info(f"Status code da resposta: {response.status_code}")
+                logger.info(f"Headers da resposta: {dict(response.headers)}")
+
+                if response.status_code == 200:
+                    try:
+                        dados = response.json()
+                        logger.info(f"Dados recebidos da API: {dados}")
+                        return dados.get('DADOS', {})
+                    except ValueError as e:
+                        logger.error(f"Erro ao decodificar JSON: {str(e)}")
+                        logger.error(f"Conteúdo da resposta: {response.text[:500]}")
+                        return None
+                else:
+                    logger.error(f"API retornou status code não-200: {response.status_code}")
+                    logger.error(f"Resposta da API: {response.text[:500]}")
+                    return None
+
+            except requests.exceptions.Timeout:
+                logger.error("Timeout na requisição para a API")
+                return None
+            except requests.exceptions.SSLError as e:
+                logger.error(f"Erro SSL na requisição: {str(e)}")
+                return None
+            except requests.exceptions.ConnectionError as e:
+                logger.error(f"Erro de conexão na requisição: {str(e)}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Erro inesperado na consulta do CPF: {str(e)}", exc_info=True)
+>>>>>>> 03be2f49752bffd1ecaa7a846874e6f94db870a6
             return None
         finally:
             if session:
