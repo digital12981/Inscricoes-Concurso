@@ -109,14 +109,23 @@ def consultar_cpf():
             verify=True,
             stream=True
         )
-        # Read response content manually to avoid recursion
-        content = response.raw.read()
-        response._content = content
-
+        # Read response content as bytes
+        content = response.content
+        
         # Log response details
         logger.info(f"Status code: {response.status_code}")
         logger.info(f"Response headers: {dict(response.headers)}")
-        logger.info(f"Response content: {response.text[:500]}")  # Log first 500 chars of response
+        logger.info(f"Response content length: {len(content)}")
+
+        # Parse response content
+        try:
+            dados = response.json()
+        except Exception as e:
+            logger.error(f"Error parsing JSON: {str(e)}")
+            try:
+                dados = response.json(strict=False)
+            except:
+                dados = {}
 
         if response.status_code != 200:
             logger.error(f"API returned non-200 status code: {response.status_code}")
