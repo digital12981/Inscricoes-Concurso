@@ -12,6 +12,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import flask
 from dotenv import load_dotenv
+from flask.sessions import SecureCookieSessionInterface
 
 # Adicione isso no início do seu arquivo app.py
 load_dotenv()
@@ -44,13 +45,14 @@ app = Flask(__name__)
 # Use a strong default secret key if not provided in environment
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "a-very-secret-key-19283719283")
 
-# Configurações simplificadas
+# Configurações da sessão
 app.config.update(
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
-    MAX_CONTENT_LENGTH=16 * 1024 * 1024,  # 16MB limit
-    PERMANENT_SESSION_LIFETIME=timedelta(hours=1)
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=1),
+    SESSION_TYPE='filesystem',
+    SESSION_COOKIE_NAME='session_cpf'  # Nome único para o cookie
 )
 
 app.static_folder = 'static'
@@ -102,6 +104,15 @@ def validar_cpf(cpf: str) -> bool:
     cpf_numerico = ''.join(filter(str.isdigit, cpf))
     return len(cpf_numerico) == 11
 
+# Classe personalizada para sessão
+class CustomSessionInterface(SecureCookieSessionInterface):
+    def save_session(self, app, session, response):
+        if session:
+            session.permanent = True
+        return super().save_session(app, session, response)
+
+app.session_interface = CustomSessionInterface()
+
 @app.route('/')
 @cache.cached(timeout=60)  # Cache da página inicial por 1 minuto
 def index():
@@ -114,62 +125,83 @@ def index():
 
 @app.route('/consultar_cpf', methods=['GET', 'POST'])
 def consultar_cpf():
-    logger.info("Recebida requisição POST para /consultar_cpf")
-    
     if request.method == 'POST':
-        logger.info(f"Form data: {request.form}")
-        cpf = request.form.get('cpf', '').strip()
-        
-        if validar_cpf(cpf):
-            try:
-                cpf_numerico = ''.join(filter(str.isdigit, cpf))
-                logger.info(f"Consultando CPF: {cpf[:3]}***{cpf[-2:]}")
+        try:
+            cpf = request.form.get('cpf', '').strip()
+            if validar_cpf(cpf):
+                dados_api = cpf_service.consultar_cpf(cpf)
+                logger.info(f"Resposta da API para CPF {cpf[:3]}***: {dados_api}")
 
-                try:
-                    dados_api = cpf_service.consultar_cpf(cpf)
-                    logger.info(f"Resposta da API para CPF {cpf[:3]}***: {dados_api}")
-
-                    if not dados_api:
-                        logger.error("API retornou dados vazios ou inválidos")
-                        flash('CPF não encontrado ou erro na consulta. Por favor, tente novamente.')
-                        return redirect(url_for('index'))
-
-                    nome = dados_api.get('NOME')
-                    if not nome:
-                        logger.error("Nome não encontrado nos dados da API")
-                        flash('CPF não encontrado ou dados incompletos.')
-                        return redirect(url_for('index'))
-
-                    logger.info(f"Dados encontrados para o CPF {cpf[:3]}***{cpf[-2:]}")
-
+                if dados_api and 'NOME' in dados_api:
+                    # Criar uma nova sessão
+                    session.clear()
+                    session.permanent = True
+                    
                     dados_usuario = {
                         'cpf': cpf,
-                        'nome_real': nome,
-                        'data_nasc': dados_api.get('NASC', ''),
-                        'nomes': gerar_nomes_falsos(nome)
+                        'nome_real': dados_api['NOME'],
+                        'data_nasc': dados_api['NASC'],
+                        'nomes': gerar_nomes_falsos(dados_api['NOME'])
                     }
-
-                    session['dados_usuario'] = dados_usuario
-                    logger.info("Dados do usuário armazenados na sessão")
-
+                    
+                    session['dados_usuario'] = dados_usuario.copy()
+                    session.modified = True
+                    
+                    logger.info(f"Dados salvos na sessão: {session.get('dados_usuario')}")
+                    
                     return render_template('verificar_nome.html',
                                         dados=dados_usuario,
                                         current_year=datetime.now().year)
-
-                except Exception as e:
-                    logger.error(f"Erro na consulta do CPF: {str(e)}", exc_info=True)
-                    flash('Erro ao consultar CPF. Por favor, tente novamente.')
-                    return redirect(url_for('index'))
-
-            except Exception as e:
-                logger.error(f"Erro na consulta: {str(e)}")
-                flash('Erro ao consultar CPF. Por favor, tente novamente.')
-                return redirect(url_for('index'))
-        else:
-            flash('CPF inválido. Por favor, digite um CPF válido.')
+            
+            # Se o CPF não for válido
+            flash('CPF inválido ou não encontrado.')
             return redirect(url_for('index'))
+            
+        except Exception as e:
+            logger.error(f"Erro na consulta do CPF: {str(e)}")
+            flash('Erro ao processar a consulta. Por favor, tente novamente.')
+            return redirect(url_for('index'))
+    
+    # Se for método GET
+    return render_template('index.html',
+                         current_year=datetime.now().year,
+                         current_month=str(datetime.now().month).zfill(2),
+                         current_day=str(datetime.now().day).zfill(2))
 
-    return redirect(url_for('index'))
+@app.route('/verificar_nome', methods=['POST'])
+def verificar_nome():
+    try:
+        nome_selecionado = request.form.get('nome')
+        
+        # Recuperar dados da sessão com uma cópia profunda
+        dados_usuario = dict(session.get('dados_usuario', {}))
+        logger.info(f"Dados recuperados da sessão: {dados_usuario}")
+        
+        # Garantir que temos a data de nascimento
+        data_nasc = dados_usuario.get('data_nasc')
+        logger.info(f"Data de nascimento recuperada: {data_nasc}")
+        
+        if not data_nasc:
+            logger.error("Data de nascimento não encontrada")
+            return redirect(url_for('index'))
+        
+        # Gerar datas e atualizar sessão
+        datas = gerar_datas_falsas(data_nasc)
+        dados_usuario['datas'] = datas
+        
+        # Atualizar sessão
+        session['dados_usuario'] = dados_usuario.copy()
+        session.modified = True
+        
+        logger.info(f"Dados atualizados na sessão: {session.get('dados_usuario')}")
+        
+        return render_template('verificar_data.html',
+                             dados=dados_usuario,
+                             current_year=datetime.now().year)
+
+    except Exception as e:
+        logger.error(f"Erro na verificação do nome: {str(e)}")
+        return redirect(url_for('index'))
 
 ESTADOS = {
     'Acre': 'AC',
@@ -266,45 +298,31 @@ def gerar_datas_falsas(data_real: str) -> list:
     Gera datas falsas de forma mais eficiente
     """
     try:
-        data_real = datetime.strptime(data_real.split()[0], '%Y-%m-%d')
+        # Remover a parte do tempo se existir
+        data_real = data_real.split()[0]
+        data_real_obj = datetime.strptime(data_real, '%Y-%m-%d')
         datas_falsas = []
         
         # Gera apenas duas datas falsas
         for _ in range(2):
             dias = random.randint(-365*2, 365*2)
-            data_falsa = data_real + timedelta(days=dias)
+            data_falsa = data_real_obj + timedelta(days=dias)
             datas_falsas.append(data_falsa.strftime('%d/%m/%Y'))
             
-        data_real_formatada = data_real.strftime('%d/%m/%Y')
+        # Adiciona a data real formatada
+        data_real_formatada = data_real_obj.strftime('%d/%m/%Y')
         todas_datas = datas_falsas + [data_real_formatada]
         random.shuffle(todas_datas)
+        
+        logger.info(f"Data real formatada: {data_real_formatada}")
+        logger.info(f"Todas as datas geradas: {todas_datas}")
+        
         return todas_datas
         
     except Exception as e:
         logger.error(f"Erro ao gerar datas falsas: {str(e)}")
-        return [data_real.strftime('%d/%m/%Y')] * 3
-
-@app.route('/verificar_nome', methods=['POST'])
-def verificar_nome():
-    nome_selecionado = request.form.get('nome')
-    dados_usuario = session.get('dados_usuario')
-
-    if not dados_usuario or not nome_selecionado:
-        flash('Sessão expirada. Por favor, faça a consulta novamente.')
-        return redirect(url_for('index'))
-
-    if nome_selecionado != dados_usuario['nome_real']:
-        flash('Nome selecionado incorreto. Por favor, tente novamente.')
-        return redirect(url_for('index'))
-
-    # Gera datas falsas para a próxima etapa
-    datas = gerar_datas_falsas(dados_usuario['data_nasc'])
-    dados_usuario['datas'] = datas
-    session['dados_usuario'] = dados_usuario
-
-    return render_template('verificar_data.html',
-                         dados=dados_usuario,
-                         current_year=datetime.now().year)
+        # Em caso de erro, retorna três datas iguais
+        return ['01/01/2000'] * 3
 
 @app.route('/verificar_data', methods=['POST'])
 def verificar_data():
@@ -820,17 +838,16 @@ def after_request(response):
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     return response
 
-# Adicionar função para limpar sessão expirada
-@app.before_request
-def clear_expired_session():
-    if not session.get('_fresh', False):
-        session.clear()
-        session.permanent = True
-
 # Adicione essa configuração para gerenciar melhor as conexões
 @app.teardown_appcontext
 def shutdown_session(exception=None):
     db.session.remove()
+
+# Forçar sessão permanente
+@app.before_request
+def make_session_permanent():
+    if session:
+        session.permanent = True
 
 port = os.getenv('PORT', 5000)
 if __name__ == '__main__':
